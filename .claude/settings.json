@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m 'Fix demand detail 404: split join query into two separate queries *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

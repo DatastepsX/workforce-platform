@@ -2,6 +2,8 @@ export type UserRole = 'admin' | 'hiring_manager' | 'recruiter' | 'candidate' | 
 export type DemandStatus = 'draft' | 'open' | 'in_progress' | 'on_hold' | 'closed' | 'cancelled';
 export type DemandPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ContractType = 'permanent' | 'freelance' | 'contractor' | 'internship';
+export type SupplierStatus = 'active' | 'inactive';
+export type DemandSupplierStatus = 'sent' | 'viewed' | 'submitted' | 'rejected';
 
 export interface Profile {
   id: string;
@@ -33,6 +35,24 @@ export interface Demand {
   updated_at: string;
 }
 
-export interface DemandWithCreator extends Demand {
-  creator: Pick<Profile, 'full_name' | 'email'> | null;
+export interface Supplier {
+  id: string;
+  created_at: string;
+  company_name: string;
+  contact_name: string | null;
+  email: string;
+  phone: string | null;
+  specializations: string[];
+  status: SupplierStatus;
+  profile_id: string | null;
+}
+
+export interface DemandSupplier {
+  id: string;
+  created_at: string;
+  demand_id: string;
+  supplier_id: string;
+  sent_at: string;
+  status: DemandSupplierStatus;
+  deadline: string | null;
 }

@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { updateDemandStatus } from '@/lib/actions/demands';
-import type { Demand, DemandStatus, UserRole } from '@/types/database';
+import { SendToSuppliersPanel } from './send-to-suppliers';
+import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier } from '@/types/database';
 
 const STATUS_COLORS: Record<DemandStatus, string> = {
   draft: '#8E8E93',
@@ -54,6 +55,8 @@ export default async function DemandDetailPage({ params }: PageProps) {
 
   const demand = demandData as Demand;
   const role = (profileData?.role ?? 'candidate') as UserRole;
+  const canEdit = demand.created_by === user.id || ['recruiter', 'admin'].includes(role);
+  const canSendToSuppliers = ['recruiter', 'admin'].includes(role);
 
   // Fetch creator profile separately (created_by → auth.users, no direct FK to profiles)
   const { data: creatorProfile } = await supabase
@@ -62,7 +65,20 @@ export default async function DemandDetailPage({ params }: PageProps) {
     .eq('id', demand.created_by)
     .single();
   const creator = creatorProfile as { full_name: string | null; email: string | null } | null;
-  const canEdit = demand.created_by === user.id || ['recruiter', 'admin'].includes(role);
+
+  // Fetch suppliers + existing demand_suppliers for the send panel
+  const [{ data: suppliersData }, { data: sentData }] = canSendToSuppliers
+    ? await Promise.all([
+        supabase.from('suppliers').select('*').order('company_name'),
+        supabase.from('demand_suppliers').select('*').eq('demand_id', id),
+      ])
+    : [{ data: null }, { data: null }];
+
+  const allSuppliers = (suppliersData ?? []) as Supplier[];
+  const sentEntries = ((sentData ?? []) as DemandSupplier[]).map(entry => ({
+    ...entry,
+    supplier: allSuppliers.find(s => s.id === entry.supplier_id)!,
+  })).filter(e => e.supplier);
 
   const NEXT_STATUSES: Partial<Record<DemandStatus, DemandStatus[]>> = {
     draft: ['open', 'cancelled'],
@@ -166,8 +182,17 @@ export default async function DemandDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Send to Suppliers */}
+      {canSendToSuppliers && (
+        <SendToSuppliersPanel
+          demandId={id}
+          availableSuppliers={allSuppliers}
+          sentEntries={sentEntries}
+        />
+      )}
+
       {/* Meta */}
-      <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+      <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] mt-4">
         <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2">Meta</p>
         <DetailRow
           label="Created by"
