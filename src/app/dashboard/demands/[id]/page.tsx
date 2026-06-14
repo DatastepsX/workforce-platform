@@ -46,14 +46,22 @@ export default async function DemandDetailPage({ params }: PageProps) {
   if (!user) redirect('/login');
 
   const [{ data: demandData }, { data: profileData }] = await Promise.all([
-    supabase.from('demands').select('*, creator:profiles!created_by(full_name, email)').eq('id', id).single(),
+    supabase.from('demands').select('*').eq('id', id).single(),
     supabase.from('profiles').select('role').eq('id', user.id).single(),
   ]);
 
   if (!demandData) notFound();
 
-  const demand = demandData as Demand & { creator: { full_name: string | null; email: string | null } | null };
+  const demand = demandData as Demand;
   const role = (profileData?.role ?? 'candidate') as UserRole;
+
+  // Fetch creator profile separately (created_by → auth.users, no direct FK to profiles)
+  const { data: creatorProfile } = await supabase
+    .from('profiles')
+    .select('full_name, email')
+    .eq('id', demand.created_by)
+    .single();
+  const creator = creatorProfile as { full_name: string | null; email: string | null } | null;
   const canEdit = demand.created_by === user.id || ['recruiter', 'admin'].includes(role);
 
   const NEXT_STATUSES: Partial<Record<DemandStatus, DemandStatus[]>> = {
@@ -163,7 +171,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
         <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2">Meta</p>
         <DetailRow
           label="Created by"
-          value={demand.creator?.full_name || demand.creator?.email || '—'}
+          value={creator?.full_name || creator?.email || '—'}
         />
         <DetailRow
           label="Created"
