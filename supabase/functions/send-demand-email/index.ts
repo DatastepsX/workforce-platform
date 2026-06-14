@@ -94,7 +94,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendKey}`,
       },
       body: JSON.stringify({
-        from: 'WorkforceX <noreply@workforcex.app>',
+        from: 'WorkforceX <onboarding@resend.dev>',
         to: supplier.email,
         subject: `New requirement: ${demand.title}`,
         html,
