@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { Sidebar } from './sidebar';
+import { DevDataGenerator } from '@/components/DevDataGenerator';
 import type { Profile } from '@/types/database';
 
 async function signOut() {
@@ -45,6 +46,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <main className="md:ml-56 pt-14 md:pt-0 min-h-screen">
         {children}
       </main>
+
+      {role === 'admin' && <DevDataGenerator />}
     </div>
   );
 }
