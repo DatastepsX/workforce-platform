@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { Profile, Demand } from '@/types/database';
+import type { Profile, Demand, CandidateProfile, CandidateSubmission } from '@/types/database';
+import { computeMatch, matchColor } from '@/lib/matching';
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -66,6 +67,26 @@ export default async function DashboardPage() {
         draft: d.filter(x => x.status === 'draft').length,
       };
     }
+  }
+
+  // Candidate: fetch their applications + compute best match
+  let candidateStats: { count: number; bestScore: number | null } | null = null;
+  if (role === 'candidate') {
+    const [{ data: subs }, { data: candProfile }] = await Promise.all([
+      supabase.from('candidate_submissions').select('demand_id, status').eq('candidate_profile_id', user.id),
+      supabase.from('candidate_profiles').select('*').eq('id', user.id).single(),
+    ]);
+    const count = subs?.length ?? 0;
+    let bestScore: number | null = null;
+    if (count > 0 && candProfile) {
+      const demandIds = (subs as Pick<CandidateSubmission, 'demand_id'>[]).map(s => s.demand_id);
+      const { data: demands } = await supabase.from('demands').select('*').in('id', demandIds);
+      if (demands) {
+        const scores = (demands as Demand[]).map(d => computeMatch(candProfile as CandidateProfile, d).score);
+        bestScore = Math.max(...scores);
+      }
+    }
+    candidateStats = { count, bestScore };
   }
 
   return (
@@ -134,18 +155,42 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Candidate CTA */}
-      {role === 'candidate' && (
-        <div className="bg-white rounded-2xl p-6 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
-          <p className="text-[17px] font-semibold text-black mb-1">Complete your profile</p>
-          <p className="text-[15px] text-[#8E8E93] mb-4">Add your details to start applying to open positions.</p>
-          <Link
-            href="/dashboard/profile"
-            className="inline-block px-5 py-2.5 rounded-[10px] text-white text-[15px] font-semibold"
-            style={{ backgroundColor: '#007AFF' }}
-          >
-            Edit profile
-          </Link>
+      {/* Candidate stats + CTA */}
+      {role === 'candidate' && candidateStats !== null && (
+        <div className="space-y-4">
+          {candidateStats.count > 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              <Link href="/dashboard/applications">
+                <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+                  <p className="text-[13px] font-medium text-[#8E8E93] mb-1">Applications</p>
+                  <p className="text-[34px] font-bold tracking-tight" style={{ color: '#007AFF' }}>
+                    {candidateStats.count}
+                  </p>
+                </div>
+              </Link>
+              {candidateStats.bestScore !== null && (
+                <Link href="/dashboard/applications">
+                  <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+                    <p className="text-[13px] font-medium text-[#8E8E93] mb-1">Best Match</p>
+                    <p className="text-[34px] font-bold tracking-tight" style={{ color: matchColor(candidateStats.bestScore) }}>
+                      {candidateStats.bestScore}%
+                    </p>
+                  </div>
+                </Link>
+              )}
+            </div>
+          )}
+          <div className="bg-white rounded-2xl p-6 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+            <p className="text-[17px] font-semibold text-black mb-1">Complete your profile</p>
+            <p className="text-[15px] text-[#8E8E93] mb-4">Keep your profile up to date to improve your match scores.</p>
+            <Link
+              href="/dashboard/profile"
+              className="inline-block px-5 py-2.5 rounded-[10px] text-white text-[15px] font-semibold"
+              style={{ backgroundColor: '#007AFF' }}
+            >
+              Edit profile
+            </Link>
+          </div>
         </div>
       )}
     </div>
