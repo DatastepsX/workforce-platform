@@ -129,6 +129,20 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
               My Profile
             </NavLink>
           )}
+
+          <div className="pt-2 mt-2 border-t border-[#F2F2F7]">
+            <a
+              href="/careers"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-[#8E8E93] hover:text-[#007AFF] hover:bg-[#007AFF]/6 transition-colors"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Career Portal
+            </a>
+          </div>
         </nav>
 
         {/* User area */}
