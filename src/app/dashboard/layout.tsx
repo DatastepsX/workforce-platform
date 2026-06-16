@@ -63,8 +63,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initial = displayName[0]?.toUpperCase() ?? '?';
   const canSeeDemands = ['admin', 'hiring_manager', 'recruiter'].includes(role);
 
-  // Fetch all profiles for user switcher
-  const { data: allProfilesData } = await supabase
+  // Fetch all profiles for user switcher — must bypass RLS so every role sees all users
+  const adminForSwitcher = createAdminClient();
+  const { data: allProfilesData } = await adminForSwitcher
     .from('profiles')
     .select('id, role, full_name, email')
     .order('role');
