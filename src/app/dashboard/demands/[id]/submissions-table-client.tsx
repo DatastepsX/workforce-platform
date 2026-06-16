@@ -335,6 +335,8 @@ export function SubmissionsTableClient({
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'direct' | 'supplier'>('all');
   const canAct = role === 'recruiter' || role === 'admin';
+  const isFiltered = q !== '' || statusFilter !== 'all' || sourceFilter !== 'all';
+  function resetFilters() { setQ(''); setStatusFilter('all'); setSourceFilter('all'); }
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
@@ -420,8 +422,13 @@ export function SubmissionsTableClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F2F2F7]">
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-8 text-center text-[13px] text-[#8E8E93]">No candidates match your filter.</td></tr>
+              {filtered.length === 0 && isFiltered ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center">
+                    <p className="text-[13px] text-[#8E8E93] mb-2">No candidates match your filter.</p>
+                    <button onClick={resetFilters} className="text-[13px] font-medium text-[#007AFF] hover:underline">Clear filters</button>
+                  </td>
+                </tr>
               ) : null}
               {filtered.map(row => {
                 const isRejected = row.status === 'rejected';

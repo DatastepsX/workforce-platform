@@ -166,7 +166,10 @@ export function SuppliersTableClient({ rows }: { rows: SupplierRow[] }) {
       .sort((a, b) => STATUS_SORT[a.relationStatus] - STATUS_SORT[b.relationStatus]);
   }, [rows, q, statusFilter]);
 
-  if (sorted.length === 0) {
+  function resetFilters() { setQ(''); setStatusFilter('all'); }
+  const isFiltered = q !== '' || statusFilter !== 'all';
+
+  if (rows.length === 0) {
     return (
       <div className="bg-white rounded-2xl p-8 text-center shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
         <p className="text-[15px] font-semibold text-black mb-1">No suppliers assigned yet</p>
@@ -216,8 +219,13 @@ export function SuppliersTableClient({ rows }: { rows: SupplierRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F2F2F7]">
-              {sorted.length === 0 ? (
-                <tr><td colSpan={6} className="px-5 py-8 text-center text-[13px] text-[#8E8E93]">No suppliers match your filter.</td></tr>
+              {sorted.length === 0 && isFiltered ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center">
+                    <p className="text-[13px] text-[#8E8E93] mb-2">No suppliers match your filter.</p>
+                    <button onClick={resetFilters} className="text-[13px] font-medium text-[#007AFF] hover:underline">Clear filters</button>
+                  </td>
+                </tr>
               ) : null}
               {sorted.map(row => {
                 const relMeta = REL_STATUS_META[row.relationStatus];
