@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useState, useMemo, useTransition, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { updateEngagementStatus } from '@/lib/actions/engagements';
 import type { Engagement, EngagementStatus } from '@/types/database';
@@ -26,9 +27,27 @@ function fmt(d: string | null) {
   return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function EngagementRow({ eng, onStatusChange }: { eng: Engagement; onStatusChange: (id: string, s: EngagementStatus) => void }) {
+function EngagementRow({
+  eng,
+  onStatusChange,
+}: {
+  eng: Engagement;
+  onStatusChange: (id: string, s: EngagementStatus) => void;
+}) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showActions, setShowActions] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function openMenu(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    }
+    setShowActions(v => !v);
+  }
 
   function changeStatus(s: EngagementStatus) {
     startTransition(async () => {
@@ -39,7 +58,10 @@ function EngagementRow({ eng, onStatusChange }: { eng: Engagement; onStatusChang
   }
 
   return (
-    <tr className="hover:bg-[#F9F9FB] transition-colors group">
+    <tr
+      className="hover:bg-[#F9F9FB] transition-colors group cursor-pointer"
+      onClick={() => router.push(`/dashboard/engagements/${eng.id}`)}
+    >
       <td className="px-5 py-3.5 align-top">
         <p className="text-[14px] font-semibold text-black">{eng.candidate_name}</p>
         {eng.candidate_email && (
@@ -47,8 +69,11 @@ function EngagementRow({ eng, onStatusChange }: { eng: Engagement; onStatusChang
         )}
       </td>
       <td className="px-3 py-3.5 align-top">
-        <Link href={`/dashboard/demands/${eng.demand_id}`}
-          className="text-[13px] text-[#007AFF] hover:underline font-medium">
+        <Link
+          href={`/dashboard/demands/${eng.demand_id}`}
+          className="text-[13px] text-[#007AFF] hover:underline font-medium"
+          onClick={e => e.stopPropagation()}
+        >
           {eng.demand_title}
         </Link>
       </td>
@@ -69,32 +94,43 @@ function EngagementRow({ eng, onStatusChange }: { eng: Engagement; onStatusChang
           <span className="text-[12px] text-[#C7C7CC]">—</span>
         )}
       </td>
-      <td className="px-3 py-3.5 align-top">
+      <td className="px-3 py-3.5 align-top" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2">
           <StatusBadge status={eng.status} />
-          <div className="relative">
-            <button
-              onClick={() => setShowActions(v => !v)}
-              disabled={isPending}
-              className="w-6 h-6 rounded-md flex items-center justify-center text-[#C7C7CC] hover:text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-            </button>
-            {showActions && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
-                <div className="absolute right-0 top-7 z-50 bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] border border-[#E5E5EA] overflow-hidden w-36">
-                  {((['active', 'completed', 'cancelled'] as EngagementStatus[])).filter(s => s !== eng.status).map(s => (
-                    <button key={s} onClick={() => changeStatus(s)}
+          <button
+            ref={btnRef}
+            onClick={openMenu}
+            disabled={isPending}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[#C7C7CC] hover:text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors opacity-0 group-hover:opacity-100"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+            </svg>
+          </button>
+
+          {/* Fixed-position dropdown to avoid overflow clipping */}
+          {showActions && menuPos && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowActions(false)} />
+              <div
+                className="fixed z-50 bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.12)] border border-[#E5E5EA] overflow-hidden w-36"
+                style={{ top: menuPos.top, right: menuPos.right }}
+              >
+                {(['active', 'completed', 'cancelled'] as EngagementStatus[])
+                  .filter(s => s !== eng.status)
+                  .map(s => (
+                    <button
+                      key={s}
+                      onClick={() => changeStatus(s)}
                       className="w-full px-3 py-2 text-left text-[13px] font-medium hover:bg-[#F2F2F7] transition-colors"
-                      style={{ color: STATUS_META[s].color }}>
+                      style={{ color: STATUS_META[s].color }}
+                    >
                       {STATUS_META[s].label}
                     </button>
                   ))}
-                </div>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </div>
       </td>
     </tr>
@@ -125,20 +161,28 @@ export function EngagementsClient({ engagements: initial }: { engagements: Engag
   for (const e of engagements) counts[e.status] = (counts[e.status] ?? 0) + 1;
 
   return (
-    <div className="bg-white rounded-2xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-[#F2F2F7]">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-[#F2F2F7] rounded-t-2xl">
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8E8E93] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
           </svg>
-          <input type="text" value={q} onChange={e => setQ(e.target.value)} placeholder="Search engagements…"
-            className="h-8 pl-8 pr-3 rounded-lg bg-[#F2F2F7] text-[12px] text-black placeholder:text-[#8E8E93] border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white focus:outline-none transition-colors w-48" />
+          <input
+            type="text"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Search engagements…"
+            className="h-8 pl-8 pr-3 rounded-lg bg-[#F2F2F7] text-[12px] text-black placeholder:text-[#8E8E93] border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white focus:outline-none transition-colors w-48"
+          />
         </div>
         <div className="flex items-center gap-1 ml-auto bg-[#F2F2F7] rounded-lg px-1.5 py-1">
           {(['all', 'active', 'completed', 'cancelled'] as const).map(v => (
-            <button key={v} onClick={() => setStatusFilter(v)}
-              className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors capitalize ${statusFilter === v ? 'bg-white text-black shadow-sm' : 'text-[#8E8E93] hover:text-black'}`}>
+            <button
+              key={v}
+              onClick={() => setStatusFilter(v)}
+              className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition-colors capitalize ${statusFilter === v ? 'bg-white text-black shadow-sm' : 'text-[#8E8E93] hover:text-black'}`}
+            >
               {v === 'all' ? `All (${counts.all ?? 0})` : `${STATUS_META[v as EngagementStatus].label} (${counts[v] ?? 0})`}
             </button>
           ))}
@@ -169,8 +213,8 @@ export function EngagementsClient({ engagements: initial }: { engagements: Engag
           </tbody>
         </table>
       </div>
-      <div className="px-5 py-2.5 border-t border-[#F2F2F7]">
-        <span className="text-[11px] text-[#C7C7CC]">{filtered.length} of {engagements.length} engagements</span>
+      <div className="px-5 py-2.5 border-t border-[#F2F2F7] rounded-b-2xl">
+        <span className="text-[11px] text-[#C7C7CC]">{filtered.length} of {engagements.length} · click a row to view details</span>
       </div>
     </div>
   );

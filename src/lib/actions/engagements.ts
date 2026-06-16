@@ -52,11 +52,17 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
   });
   if (engErr) return { error: engErr.message };
 
-  // Move submission to 'hired'
-  await supabase
-    .from('candidate_submissions')
-    .update({ status: 'hired' })
-    .eq('id', input.submissionId);
+  // Move submission to 'hired' and close demand
+  await Promise.all([
+    supabase
+      .from('candidate_submissions')
+      .update({ status: 'hired' })
+      .eq('id', input.submissionId),
+    supabase
+      .from('demands')
+      .update({ status: 'closed' })
+      .eq('id', input.demandId),
+  ]);
 
   // Notify supplier
   if (input.supplierId && input.supplierEmail && input.supplierName) {
@@ -83,17 +89,13 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
 export async function updateEngagementStatus(
   id: string,
   status: EngagementStatus,
-): Promise<{ error?: string }> {
+): Promise<void> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated' };
+  if (!user) return;
 
-  const { error } = await supabase
-    .from('engagements')
-    .update({ status })
-    .eq('id', id);
-  if (error) return { error: error.message };
+  await supabase.from('engagements').update({ status }).eq('id', id);
 
   revalidatePath('/dashboard/engagements');
-  return {};
+  revalidatePath(`/dashboard/engagements/${id}`);
 }

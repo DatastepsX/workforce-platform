@@ -6,7 +6,7 @@ import { SendToSuppliersPanel } from './send-to-suppliers';
 import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
-import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier } from '@/types/database';
+import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus } from '@/types/database';
 
 const STATUS_COLORS: Record<DemandStatus, string> = {
   draft: '#8E8E93',
@@ -84,11 +84,34 @@ export default async function DemandDetailPage({ params }: PageProps) {
     supplier: allSuppliers.find(s => s.id === entry.supplier_id)!,
   })).filter(e => e.supplier);
 
+  // Fetch engagements for this demand
+  let engagements: Engagement[] = [];
+  if (canViewSubmissions) {
+    const { data: engData } = await supabase
+      .from('engagements')
+      .select('*')
+      .eq('demand_id', id)
+      .order('created_at', { ascending: false });
+    engagements = (engData ?? []) as Engagement[];
+  }
+
+  const ENG_STATUS_META: Record<EngagementStatus, { label: string; color: string }> = {
+    active:    { label: 'Active',    color: '#34C759' },
+    completed: { label: 'Completed', color: '#007AFF' },
+    cancelled: { label: 'Cancelled', color: '#FF3B30' },
+  };
+
+  function fmtDate(d: string | null) {
+    if (!d) return null;
+    return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
   const NEXT_STATUSES: Partial<Record<DemandStatus, DemandStatus[]>> = {
     draft: ['open', 'cancelled'],
     open: ['in_progress', 'on_hold', 'cancelled'],
     in_progress: ['on_hold', 'closed', 'cancelled'],
     on_hold: ['open', 'in_progress', 'cancelled'],
+    closed: ['open'],
   };
   const nextStatuses = canEdit ? (NEXT_STATUSES[demand.status] ?? []) : [];
 
@@ -100,6 +123,31 @@ export default async function DemandDetailPage({ params }: PageProps) {
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
         <span className="text-black font-medium">{demand.title}</span>
       </div>
+
+      {/* Hired banner */}
+      {engagements.length > 0 && (
+        <div className="bg-[#34C759]/8 border border-[#34C759]/25 rounded-2xl px-5 py-4 mb-5 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-[#34C759] flex items-center justify-center flex-shrink-0">
+            <svg className="w-4.5 h-4.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[14px] font-semibold text-[#1C7B3A]">Position Filled</p>
+            <p className="text-[13px] text-[#3C3C43]">
+              <span className="font-semibold">{engagements[0].candidate_name}</span>
+              {' '}has been commissioned
+              {engagements[0].start_date ? ` · Starting ${fmtDate(engagements[0].start_date)}` : ''}
+            </p>
+          </div>
+          <Link
+            href={`/dashboard/engagements/${engagements[0].id}`}
+            className="text-[13px] font-semibold text-[#007AFF] hover:underline whitespace-nowrap flex-shrink-0"
+          >
+            View Engagement →
+          </Link>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start gap-3 mb-6">
@@ -261,6 +309,56 @@ export default async function DemandDetailPage({ params }: PageProps) {
             demandEndDate={demand.end_date ?? ''}
             role={role}
           />
+        </div>
+      )}
+
+      {/* Engagements */}
+      {canViewSubmissions && engagements.length > 0 && (
+        <div className="mt-6">
+          <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
+            Engagements
+          </p>
+          <div className="space-y-3">
+            {engagements.map(eng => {
+              const m = ENG_STATUS_META[eng.status];
+              return (
+                <Link key={eng.id} href={`/dashboard/engagements/${eng.id}`}>
+                  <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.1)] transition-shadow flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: m.color + '18', color: m.color }}
+                        >
+                          {m.label}
+                        </span>
+                      </div>
+                      <p className="text-[15px] font-bold text-black">{eng.candidate_name}</p>
+                      {eng.supplier_name && (
+                        <p className="text-[13px] text-[#8E8E93]">via {eng.supplier_name}</p>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {eng.rate && (
+                        <p className="text-[15px] font-bold text-black">
+                          {eng.currency} {eng.rate.toLocaleString()}
+                          <span className="text-[12px] font-normal text-[#8E8E93] ml-1">/{eng.rate_type}</span>
+                        </p>
+                      )}
+                      {(eng.start_date || eng.end_date) && (
+                        <p className="text-[12px] text-[#8E8E93] mt-0.5">
+                          {fmtDate(eng.start_date) ?? '?'}{eng.end_date ? ` – ${fmtDate(eng.end_date)}` : ''}
+                        </p>
+                      )}
+                    </div>
+                    <svg className="w-4 h-4 text-[#C7C7CC] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       )}
 
