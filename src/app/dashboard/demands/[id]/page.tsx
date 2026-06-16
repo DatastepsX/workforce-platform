@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { updateDemandStatus, deleteDemand } from '@/lib/actions/demands';
 import { SendToSuppliersPanel } from './send-to-suppliers';
+import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
 import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier } from '@/types/database';
@@ -215,7 +216,17 @@ export default async function DemandDetailPage({ params }: PageProps) {
         />
       )}
 
-      {/* Candidate Submissions — inline comparison table */}
+      {/* Suppliers */}
+      {canViewSubmissions && (
+        <div className="mt-6">
+          <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
+            Suppliers
+          </p>
+          <SuppliersTable demandId={id} />
+        </div>
+      )}
+
+      {/* Candidate Submissions */}
       {canViewSubmissions && (
         <div className="mt-6">
           <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
