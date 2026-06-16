@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { updateDemandStatus, deleteDemand } from '@/lib/actions/demands';
 import { SendToSuppliersPanel } from './send-to-suppliers';
+import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
 import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier } from '@/types/database';
 
@@ -214,25 +215,14 @@ export default async function DemandDetailPage({ params }: PageProps) {
         />
       )}
 
-      {/* Submissions pipeline link */}
+      {/* Candidate Submissions — inline comparison table */}
       {canViewSubmissions && (
-        <Link
-          href={`/dashboard/demands/${id}/submissions`}
-          className="flex items-center justify-between bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] mt-4 group hover:shadow-[0_2px_12px_rgba(0,0,0,0.1)] transition-shadow"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#007AFF]/10 flex items-center justify-center">
-              <svg className="w-4.5 h-4.5 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-            <div>
-              <p className="text-[15px] font-semibold text-black">Candidate Submissions</p>
-              <p className="text-[13px] text-[#8E8E93]">Review submitted candidates and manage pipeline</p>
-            </div>
-          </div>
-          <svg className="w-4 h-4 text-[#C7C7CC] group-hover:text-[#007AFF] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </Link>
+        <div className="mt-6">
+          <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
+            Candidate Submissions
+          </p>
+          <SubmissionsTable demandId={id} demandSkills={demand.skills} role={role} />
+        </div>
       )}
 
       {/* Meta */}

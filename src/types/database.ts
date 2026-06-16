@@ -102,6 +102,8 @@ export interface CandidateSubmission {
   notes: string | null;
   status: SubmissionStatus;
   submitted_at: string;
+  proposed_rate: number | null;
+  rate_type: string | null;
 }
 
 export interface DemandSupplier {
