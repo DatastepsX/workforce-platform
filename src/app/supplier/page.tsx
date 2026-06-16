@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { updateDemandSupplierStatus } from '@/lib/actions/suppliers';
 import type { Demand, DemandSupplier, DemandSupplierStatus } from '@/types/database';
 
@@ -172,32 +173,32 @@ export default async function SupplierPortalPage() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 pt-1 border-t border-[#F2F2F7]">
-                {entry.status !== 'submitted' && entry.status !== 'rejected' && (
-                  <form action={updateDemandSupplierStatus.bind(null, entry.id, 'submitted', entry.demand_id)}>
-                    <button
-                      type="submit"
-                      className="mt-3 px-4 py-2 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: '#34C759' }}
-                    >
-                      Submit Candidates
-                    </button>
-                  </form>
+              <div className="flex gap-2 pt-3 border-t border-[#F2F2F7] items-center">
+                {entry.status !== 'rejected' && (
+                  <Link
+                    href={`/supplier/demands/${entry.demand_id}/submit`}
+                    className="px-4 py-2 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90 flex items-center gap-1.5"
+                    style={{ backgroundColor: '#34C759' }}
+                  >
+                    Submit Candidates
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                  </Link>
                 )}
                 {entry.status !== 'rejected' && entry.status !== 'submitted' && (
                   <form action={updateDemandSupplierStatus.bind(null, entry.id, 'rejected', entry.demand_id)}>
                     <button
                       type="submit"
-                      className="mt-3 px-4 py-2 rounded-[10px] text-[14px] font-medium text-[#FF3B30] bg-[#FF3B30]/8 hover:bg-[#FF3B30]/15 transition-colors"
+                      className="px-4 py-2 rounded-[10px] text-[14px] font-medium text-[#FF3B30] bg-[#FF3B30]/8 hover:bg-[#FF3B30]/15 transition-colors"
                     >
                       Decline
                     </button>
                   </form>
                 )}
-                {(entry.status === 'submitted' || entry.status === 'rejected') && (
-                  <p className="mt-3 text-[14px] text-[#8E8E93] pt-0.5">
-                    {entry.status === 'submitted' ? '✓ Candidates submitted' : '✗ Declined'}
-                  </p>
+                {entry.status === 'rejected' && (
+                  <p className="text-[14px] text-[#8E8E93]">✗ Declined</p>
+                )}
+                {entry.status === 'submitted' && (
+                  <span className="text-[12px] text-[#34C759] font-medium">✓ Candidates submitted</span>
                 )}
               </div>
             </div>

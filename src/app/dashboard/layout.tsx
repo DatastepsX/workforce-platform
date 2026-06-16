@@ -11,6 +11,16 @@ async function signOut() {
   redirect('/login');
 }
 
+async function switchToUser(formData: FormData) {
+  'use server';
+  const email = formData.get('email') as string;
+  if (!email) return;
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  await supabase.auth.signInWithPassword({ email, password: 'Test1234!' });
+  redirect(email.includes('+supplier') ? '/supplier' : '/dashboard');
+}
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,6 +34,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const p = profile as Pick<Profile, 'role' | 'full_name' | 'email'> | null;
   const role = p?.role ?? 'candidate';
+
+  if (role === 'supplier') redirect('/supplier');
   const displayName = p?.full_name || p?.email || user.email || '';
   const initial = displayName[0]?.toUpperCase() ?? '?';
   const canSeeDemands = ['admin', 'hiring_manager', 'recruiter'].includes(role);
@@ -36,6 +48,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role={role}
         canSeeDemands={canSeeDemands}
         signOut={signOut}
+        switchToUser={switchToUser}
       />
 
       {/*
@@ -47,7 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
 
-      {role === 'admin' && <DevDataGenerator />}
+      <DevDataGenerator />
     </div>
   );
 }

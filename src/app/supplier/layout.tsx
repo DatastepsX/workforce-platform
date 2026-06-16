@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { DevDataGenerator } from '@/components/DevDataGenerator';
 
 async function signOut() {
   'use server';
@@ -31,7 +32,13 @@ export default async function SupplierLayout({ children }: { children: React.Rea
     <div className="min-h-screen bg-[#F2F2F7]">
       {/* Top bar */}
       <header className="bg-white border-b border-[#E5E5EA] px-6 h-14 flex items-center justify-between sticky top-0 z-10">
-        <span className="text-[17px] font-bold tracking-tight text-black">WorkforceX</span>
+        <div className="flex items-center gap-5">
+          <span className="text-[17px] font-bold tracking-tight text-black">WorkforceX</span>
+          <nav className="flex items-center gap-0.5">
+            <a href="/supplier" className="px-3 py-1.5 rounded-lg text-[14px] font-medium text-[#3C3C43] hover:bg-[#F2F2F7] transition-colors">Demands</a>
+            <a href="/supplier/candidates" className="px-3 py-1.5 rounded-lg text-[14px] font-medium text-[#3C3C43] hover:bg-[#F2F2F7] transition-colors">Candidates</a>
+          </nav>
+        </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div
@@ -54,6 +61,7 @@ export default async function SupplierLayout({ children }: { children: React.Rea
       </header>
 
       <main>{children}</main>
+      <DevDataGenerator />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { deleteSupplier } from '@/lib/actions/suppliers';
+import { DeleteButton } from '@/components/DeleteButton';
 import type { Supplier } from '@/types/database';
 
 export default async function SuppliersPage() {
@@ -11,6 +13,8 @@ export default async function SuppliersPage() {
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single();
   if (!['admin', 'recruiter'].includes(profile?.role ?? '')) redirect('/dashboard');
+
+  const role = profile?.role ?? '';
 
   const { data } = await supabase
     .from('suppliers')
@@ -85,6 +89,23 @@ export default async function SuppliersPage() {
                   >
                     {s.phone}
                   </a>
+                )}
+                {role === 'admin' && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Link
+                      href={`/dashboard/suppliers/${s.id}/edit`}
+                      className="px-2.5 py-1 rounded-lg text-[12px] font-medium text-[#007AFF] hover:bg-[#007AFF]/8 transition-colors"
+                    >
+                      Edit
+                    </Link>
+                    <DeleteButton
+                      action={deleteSupplier}
+                      id={s.id}
+                      confirmMessage={`Delete "${s.company_name}"? This cannot be undone.`}
+                      label="Delete"
+                      className="px-2.5 py-1 rounded-lg text-[12px] font-medium text-[#FF3B30] hover:bg-[#FF3B30]/8 transition-colors disabled:opacity-40"
+                    />
+                  </div>
                 )}
               </div>
             </div>

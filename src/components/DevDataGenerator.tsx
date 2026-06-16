@@ -8,6 +8,7 @@ interface FieldInfo {
   type: string;
   label: string;
   placeholder: string;
+  currentValue?: string;
   options?: { value: string; label: string }[];
 }
 
@@ -55,6 +56,15 @@ function scanFields(): FieldInfo[] {
     if (!key || seen.has(key)) return;
     seen.add(key);
 
+    const currentValue =
+      el instanceof HTMLSelectElement
+        ? el.value
+        : el instanceof HTMLTextAreaElement
+        ? el.value
+        : el.type === 'checkbox'
+        ? (el as HTMLInputElement).checked ? 'true' : 'false'
+        : (el as HTMLInputElement).value;
+
     const field: FieldInfo = {
       name: key,
       type:
@@ -65,6 +75,7 @@ function scanFields(): FieldInfo[] {
           : (el as HTMLInputElement).type || 'text',
       label: findLabel(el),
       placeholder: (el as HTMLInputElement).placeholder ?? '',
+      currentValue: currentValue || undefined,
     };
 
     if (el instanceof HTMLSelectElement) {
@@ -74,6 +85,21 @@ function scanFields(): FieldInfo[] {
     }
 
     fields.push(field);
+  });
+
+  // Also scan TagInput components (visible typing input has data-tag-input attribute)
+  document.querySelectorAll<HTMLInputElement>('[data-tag-input]').forEach(el => {
+    const name = el.getAttribute('data-tag-input') ?? '';
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    const currentValue = el.getAttribute('data-current-value') || undefined;
+    fields.push({
+      name,
+      type: 'tags',
+      label: findLabel(el),
+      placeholder: el.placeholder ?? '',
+      currentValue,
+    });
   });
 
   return fields;
@@ -119,6 +145,14 @@ function fillFields(data: Record<string, string>) {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     }
+  });
+
+  // Fill TagInput components via custom event
+  document.querySelectorAll<HTMLInputElement>('[data-tag-input]').forEach(el => {
+    const name = el.getAttribute('data-tag-input') ?? '';
+    const value = data[name];
+    if (value === undefined || value === null) return;
+    el.dispatchEvent(new CustomEvent('fill-tags', { detail: value, bubbles: false }));
   });
 }
 

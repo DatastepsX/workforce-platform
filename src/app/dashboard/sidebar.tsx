@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { NavLink } from './nav-link';
+import { DevUserSwitcher } from '@/components/DevUserSwitcher';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -17,9 +18,10 @@ interface SidebarProps {
   role: string;
   canSeeDemands: boolean;
   signOut: () => Promise<void>;
+  switchToUser: (formData: FormData) => Promise<void>;
 }
 
-export function Sidebar({ displayName, initial, role, canSeeDemands, signOut }: SidebarProps) {
+export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, switchToUser }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -105,6 +107,28 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut }: 
               Suppliers
             </NavLink>
           )}
+
+          {(role === 'admin' || role === 'recruiter') && (
+            <NavLink href="/dashboard/candidates">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="7" r="4" />
+                <path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+                <path d="M16 3.13a4 4 0 010 7.75" />
+                <path d="M21 21v-2a4 4 0 00-3-3.87" />
+              </svg>
+              Candidates
+            </NavLink>
+          )}
+
+          {role === 'candidate' && (
+            <NavLink href="/dashboard/profile">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+              My Profile
+            </NavLink>
+          )}
         </nav>
 
         {/* User area */}
@@ -116,10 +140,11 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut }: 
             >
               {initial}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium text-black truncate leading-tight">{displayName}</p>
               <p className="text-[11px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
             </div>
+            <DevUserSwitcher currentRole={role} switchAction={switchToUser} />
           </div>
           <form action={signOut} className="mt-1">
             <button

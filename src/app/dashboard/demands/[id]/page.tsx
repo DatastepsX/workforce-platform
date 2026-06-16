@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { updateDemandStatus } from '@/lib/actions/demands';
+import { updateDemandStatus, deleteDemand } from '@/lib/actions/demands';
 import { SendToSuppliersPanel } from './send-to-suppliers';
+import { DeleteButton } from '@/components/DeleteButton';
 import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier } from '@/types/database';
 
 const STATUS_COLORS: Record<DemandStatus, string> = {
@@ -57,6 +58,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
   const role = (profileData?.role ?? 'candidate') as UserRole;
   const canEdit = demand.created_by === user.id || ['recruiter', 'admin'].includes(role);
   const canSendToSuppliers = ['recruiter', 'admin'].includes(role);
+  const canViewSubmissions = ['recruiter', 'admin', 'hiring_manager'].includes(role);
 
   // Fetch creator profile separately (created_by → auth.users, no direct FK to profiles)
   const { data: creatorProfile } = await supabase
@@ -116,25 +118,46 @@ export default async function DemandDetailPage({ params }: PageProps) {
           </div>
           <h1 className="text-[28px] font-bold tracking-tight text-black leading-tight">{demand.title}</h1>
         </div>
-        {canEdit && nextStatuses.length > 0 && (
-          <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-            {nextStatuses.map(s => (
-              <form key={s} action={updateDemandStatus.bind(null, id, s)}>
-                <button
-                  type="submit"
-                  className="px-3 py-1.5 rounded-[10px] text-[13px] font-semibold border transition-colors"
-                  style={{
-                    borderColor: STATUS_COLORS[s],
-                    color: STATUS_COLORS[s],
-                    backgroundColor: STATUS_COLORS[s] + '10',
-                  }}
-                >
-                  → {STATUS_LABELS[s]}
-                </button>
-              </form>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          {canEdit && nextStatuses.length > 0 && (
+            <div className="flex gap-2 flex-wrap justify-end">
+              {nextStatuses.map(s => (
+                <form key={s} action={updateDemandStatus.bind(null, id, s)}>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 rounded-[10px] text-[13px] font-semibold border transition-colors"
+                    style={{
+                      borderColor: STATUS_COLORS[s],
+                      color: STATUS_COLORS[s],
+                      backgroundColor: STATUS_COLORS[s] + '10',
+                    }}
+                  >
+                    → {STATUS_LABELS[s]}
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+          {canEdit && (
+            <div className="flex gap-2">
+              <Link
+                href={`/dashboard/demands/${id}/edit`}
+                className="px-3 py-1.5 rounded-[10px] text-[13px] font-medium text-[#007AFF] bg-[#007AFF]/8 hover:bg-[#007AFF]/15 transition-colors"
+              >
+                Edit
+              </Link>
+              {role === 'admin' && (
+                <DeleteButton
+                  action={deleteDemand}
+                  id={id}
+                  confirmMessage={`Delete "${demand.title}"? This cannot be undone.`}
+                  label="Delete"
+                  className="px-3 py-1.5 rounded-[10px] text-[13px] font-medium text-[#FF3B30] bg-[#FF3B30]/8 hover:bg-[#FF3B30]/15 transition-colors disabled:opacity-40"
+                />
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Description */}
@@ -189,6 +212,27 @@ export default async function DemandDetailPage({ params }: PageProps) {
           availableSuppliers={allSuppliers}
           sentEntries={sentEntries}
         />
+      )}
+
+      {/* Submissions pipeline link */}
+      {canViewSubmissions && (
+        <Link
+          href={`/dashboard/demands/${id}/submissions`}
+          className="flex items-center justify-between bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] mt-4 group hover:shadow-[0_2px_12px_rgba(0,0,0,0.1)] transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#007AFF]/10 flex items-center justify-center">
+              <svg className="w-4.5 h-4.5 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold text-black">Candidate Submissions</p>
+              <p className="text-[13px] text-[#8E8E93]">Review submitted candidates and manage pipeline</p>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-[#C7C7CC] group-hover:text-[#007AFF] transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </Link>
       )}
 
       {/* Meta */}

@@ -1,4 +1,7 @@
 export type UserRole = 'admin' | 'hiring_manager' | 'recruiter' | 'candidate' | 'supplier';
+export type SeniorityLevel = 'junior' | 'mid' | 'senior' | 'lead';
+export type AvailabilityType = 'immediate' | 'notice_period' | 'not_available';
+export type RemotePreference = 'onsite' | 'hybrid' | 'remote' | 'flexible';
 export type DemandStatus = 'draft' | 'open' | 'in_progress' | 'on_hold' | 'closed' | 'cancelled';
 export type DemandPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ContractType = 'permanent' | 'freelance' | 'contractor' | 'internship';
@@ -45,6 +48,60 @@ export interface Supplier {
   specializations: string[];
   status: SupplierStatus;
   profile_id: string | null;
+}
+
+export interface CandidateProfile {
+  id: string;
+  headline: string | null;
+  bio: string | null;
+  skills: string[];
+  years_experience: number | null;
+  seniority_level: SeniorityLevel | null;
+  availability_date: string | null;
+  availability_type: AvailabilityType;
+  notice_period_weeks: number | null;
+  location: string | null;
+  remote_preference: RemotePreference;
+  languages: string[];
+  hourly_rate_min: number | null;
+  hourly_rate_max: number | null;
+  currency: string;
+  linkedin_url: string | null;
+  portfolio_url: string | null;
+  preferred_employment: string[];
+  cv_path: string | null;
+  updated_at: string;
+}
+
+export type SubmissionStatus = 'proposed' | 'shortlisted' | 'interview' | 'offer' | 'hired' | 'rejected';
+
+export interface SupplierCandidate {
+  id: string;
+  created_at: string;
+  supplier_id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  headline: string | null;
+  skills: string[];
+  cv_path: string | null;
+  notes: string | null;
+  updated_at: string;
+}
+
+export interface CandidateSubmission {
+  id: string;
+  created_at: string;
+  demand_id: string;
+  supplier_id: string;
+  supplier_candidate_id: string | null;
+  candidate_profile_id: string | null;
+  cv_path: string | null;
+  candidate_name: string;
+  candidate_email: string | null;
+  notes: string | null;
+  status: SubmissionStatus;
+  submitted_at: string;
 }
 
 export interface DemandSupplier {
