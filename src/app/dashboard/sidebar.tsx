@@ -12,6 +12,13 @@ const ROLE_LABELS: Record<string, string> = {
   supplier: 'Supplier',
 };
 
+interface UserOption {
+  id: string;
+  email: string;
+  role: string;
+  displayName: string;
+}
+
 interface SidebarProps {
   displayName: string;
   initial: string;
@@ -19,9 +26,10 @@ interface SidebarProps {
   canSeeDemands: boolean;
   signOut: () => Promise<void>;
   switchToUser: (formData: FormData) => Promise<void>;
+  allUsers: UserOption[];
 }
 
-export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, switchToUser }: SidebarProps) {
+export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, switchToUser, allUsers }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -158,7 +166,7 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
               <p className="text-[13px] font-medium text-black truncate leading-tight">{displayName}</p>
               <p className="text-[11px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
             </div>
-            <DevUserSwitcher currentRole={role} switchAction={switchToUser} />
+            <DevUserSwitcher switchAction={switchToUser} allUsers={allUsers} />
           </div>
           <form action={signOut} className="mt-1">
             <button

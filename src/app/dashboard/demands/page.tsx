@@ -45,7 +45,7 @@ const CONTRACT_LABELS: Record<string, string> = {
 };
 
 interface PageProps {
-  searchParams: Promise<{ status?: string; priority?: string }>;
+  searchParams: Promise<{ status?: string; priority?: string; q?: string }>;
 }
 
 export default async function DemandsPage({ searchParams }: PageProps) {
@@ -53,7 +53,7 @@ export default async function DemandsPage({ searchParams }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { status, priority } = await searchParams;
+  const { status, priority, q } = await searchParams;
 
   let query = supabase
     .from('demands')
@@ -62,6 +62,7 @@ export default async function DemandsPage({ searchParams }: PageProps) {
 
   if (status && status !== 'all') query = query.eq('status', status as DemandStatus);
   if (priority && priority !== 'all') query = query.eq('priority', priority as DemandPriority);
+  if (q?.trim()) query = query.ilike('title', `%${q.trim()}%`);
 
   const { data: demands } = await query;
   const list = (demands ?? []) as Demand[];

@@ -4,6 +4,24 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { applyToDemand } from '@/lib/actions/applications';
 
+async function generateTestData(demandId: string, demandTitle: string) {
+  const res = await fetch('/api/generate-test-data', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      path: `/careers/${demandId}/apply`,
+      fields: [
+        { name: 'name', type: 'text', label: 'Full Name', placeholder: 'Maria Schmidt' },
+        { name: 'email', type: 'email', label: 'Email Address' },
+        { name: 'phone', type: 'tel', label: 'Phone', placeholder: '+49 170 1234567' },
+        { name: 'cover_letter', type: 'textarea', label: 'Cover Letter', placeholder: `I am applying for the ${demandTitle} position because…` },
+      ],
+    }),
+  });
+  if (!res.ok) return null;
+  return res.json() as Promise<Record<string, string>>;
+}
+
 type Step = 'details' | 'account' | 'motivation' | 'success';
 
 const STEP_LABELS: Record<Step, string> = {
@@ -23,7 +41,7 @@ function StepIndicator({ current }: { current: Step }) {
   const activeSteps = STEPS.slice(0, -1); // exclude 'success' from indicator
   const currentIdx = activeSteps.indexOf(current);
   return (
-    <div className="flex items-center gap-2 mb-6">
+    <div className="flex items-center gap-2">
       {activeSteps.map((s, i) => (
         <div key={s} className="flex items-center gap-2">
           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
@@ -59,6 +77,7 @@ export function ApplyForm({ demandId, demandTitle }: Props) {
   const [step, setStep] = useState<Step>('details');
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
+  const [isFilling, setIsFilling] = useState(false);
 
   // Form data collected across steps
   const [form, setForm] = useState({
@@ -70,6 +89,26 @@ export function ApplyForm({ demandId, demandTitle }: Props) {
   function update(field: keyof typeof form, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
     setError('');
+  }
+
+  async function fillAI() {
+    setIsFilling(true);
+    try {
+      const data = await generateTestData(demandId, demandTitle);
+      if (data) {
+        setForm(prev => ({
+          ...prev,
+          name: data.name || prev.name,
+          email: data.email || prev.email,
+          phone: data.phone || prev.phone,
+          password: 'Test1234!',
+          confirmPassword: 'Test1234!',
+          coverLetter: data.cover_letter || prev.coverLetter,
+        }));
+      }
+    } finally {
+      setIsFilling(false);
+    }
   }
 
   function nextFromDetails() {
@@ -146,7 +185,22 @@ export function ApplyForm({ demandId, demandTitle }: Props) {
 
   return (
     <div>
-      <StepIndicator current={step} />
+      <div className="flex items-center justify-between mb-6">
+        <StepIndicator current={step} />
+        <button
+          type="button"
+          onClick={fillAI}
+          disabled={isFilling}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold text-[#007AFF] bg-[#007AFF]/8 hover:bg-[#007AFF]/15 transition-colors disabled:opacity-50 disabled:cursor-wait"
+        >
+          {isFilling ? (
+            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" /></svg>
+          )}
+          {isFilling ? 'Generating…' : 'Fill with AI'}
+        </button>
+      </div>
 
       {/* Step 1: About you */}
       {step === 'details' && (

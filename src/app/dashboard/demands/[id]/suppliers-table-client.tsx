@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { DemandSupplierStatus, SubmissionStatus } from '@/types/database';
 
 const REL_STATUS_META: Record<DemandSupplierStatus, { label: string; color: string }> = {
@@ -150,8 +150,21 @@ function SupplierDrawer({ row, onClose }: { row: SupplierRow; onClose: () => voi
 
 export function SuppliersTableClient({ rows }: { rows: SupplierRow[] }) {
   const [selected, setSelected] = useState<SupplierRow | null>(null);
+  const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState<DemandSupplierStatus | 'all'>('all');
 
-  const sorted = [...rows].sort((a, b) => STATUS_SORT[a.relationStatus] - STATUS_SORT[b.relationStatus]);
+  const sorted = useMemo(() => {
+    const term = q.toLowerCase().trim();
+    return [...rows]
+      .filter(r => {
+        if (statusFilter !== 'all' && r.relationStatus !== statusFilter) return false;
+        if (!term) return true;
+        return r.companyName.toLowerCase().includes(term) ||
+          (r.contactName || '').toLowerCase().includes(term) ||
+          r.email.toLowerCase().includes(term);
+      })
+      .sort((a, b) => STATUS_SORT[a.relationStatus] - STATUS_SORT[b.relationStatus]);
+  }, [rows, q, statusFilter]);
 
   if (sorted.length === 0) {
     return (
@@ -165,6 +178,31 @@ export function SuppliersTableClient({ rows }: { rows: SupplierRow[] }) {
   return (
     <>
       <div className="bg-white rounded-2xl shadow-[0_1px_8px_rgba(0,0,0,0.06)] overflow-hidden">
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-[#F2F2F7]">
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8E8E93] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Search suppliers…"
+              className="h-8 pl-8 pr-2 rounded-lg bg-[#F2F2F7] text-[12px] text-black placeholder:text-[#8E8E93] border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white focus:outline-none transition-colors w-40"
+            />
+          </div>
+          <div className="flex items-center gap-1 bg-[#F2F2F7] rounded-lg px-1.5 py-1 ml-auto">
+            <span className="text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wide mr-0.5">Status</span>
+            {(['all', 'submitted', 'viewed', 'sent', 'rejected'] as const).map(v => (
+              <button key={v} onClick={() => setStatusFilter(v === 'all' ? 'all' : v as DemandSupplierStatus)}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium capitalize transition-colors ${statusFilter === v ? 'bg-white text-black shadow-sm' : 'text-[#8E8E93] hover:text-black'}`}
+              >
+                {v === 'all' ? 'All' : v === 'rejected' ? 'Declined' : v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px]">
             <thead>
@@ -178,6 +216,9 @@ export function SuppliersTableClient({ rows }: { rows: SupplierRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F2F2F7]">
+              {sorted.length === 0 ? (
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-[13px] text-[#8E8E93]">No suppliers match your filter.</td></tr>
+              ) : null}
               {sorted.map(row => {
                 const relMeta = REL_STATUS_META[row.relationStatus];
                 const isSelected = selected?.demandSupplierId === row.demandSupplierId;
@@ -241,8 +282,9 @@ export function SuppliersTableClient({ rows }: { rows: SupplierRow[] }) {
             </tbody>
           </table>
         </div>
-        <div className="px-5 py-2.5 border-t border-[#F2F2F7]">
+        <div className="px-5 py-2.5 border-t border-[#F2F2F7] flex items-center justify-between">
           <span className="text-[11px] text-[#C7C7CC]">Click a row to view supplier details and submitted candidates</span>
+          <span className="text-[11px] text-[#C7C7CC]">{sorted.length} of {rows.length}</span>
         </div>
       </div>
 

@@ -2,21 +2,54 @@
 
 import { useState } from 'react';
 
-const DEV_USERS = [
-  { email: 'micciche.alessandro+admin@gmail.com',     role: 'admin',          label: 'Admin',          color: '#FF3B30' },
-  { email: 'micciche.alessandro+hiring@gmail.com',    role: 'hiring_manager', label: 'Hiring Manager', color: '#FF9500' },
-  { email: 'micciche.alessandro+recruiter@gmail.com', role: 'recruiter',      label: 'Recruiter',      color: '#007AFF' },
-  { email: 'micciche.alessandro+supplier@gmail.com',  role: 'supplier',       label: 'Supplier',       color: '#34C759' },
-  { email: 'micciche.alessandro+candidate@gmail.com', role: 'candidate',      label: 'Candidate',      color: '#8E8E93' },
-];
+const ROLE_COLORS: Record<string, string> = {
+  admin: '#FF3B30',
+  hiring_manager: '#FF9500',
+  recruiter: '#007AFF',
+  supplier: '#34C759',
+  candidate: '#8E8E93',
+};
 
-interface Props {
-  currentRole: string;
-  switchAction: (formData: FormData) => Promise<void>;
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  hiring_manager: 'Hiring Mgr',
+  recruiter: 'Recruiter',
+  supplier: 'Supplier',
+  candidate: 'Candidate',
+};
+
+const ROLE_ORDER = ['admin', 'recruiter', 'hiring_manager', 'supplier', 'candidate'];
+
+interface UserOption {
+  id: string;
+  email: string;
+  role: string;
+  displayName: string;
 }
 
-export function DevUserSwitcher({ currentRole, switchAction }: Props) {
+interface Props {
+  switchAction: (formData: FormData) => Promise<void>;
+  allUsers: UserOption[];
+}
+
+export function DevUserSwitcher({ switchAction, allUsers }: Props) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const close = () => { setOpen(false); setSearch(''); };
+
+  const sorted = [...allUsers]
+    .filter(u => {
+      if (!search.trim()) return true;
+      const term = search.toLowerCase();
+      return u.displayName.toLowerCase().includes(term) ||
+        u.role.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term);
+    })
+    .sort((a, b) =>
+      (ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)) ||
+      a.displayName.localeCompare(b.displayName)
+    );
 
   return (
     <div className="relative">
@@ -32,36 +65,43 @@ export function DevUserSwitcher({ currentRole, switchAction }: Props) {
 
       {open && (
         <>
-          {/* backdrop */}
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-
-          {/* popover */}
-          <div className="absolute bottom-7 left-0 z-50 w-44 bg-white rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.14)] border border-[#E5E5EA] overflow-hidden">
-            <p className="px-3 pt-2.5 pb-1.5 text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wider border-b border-[#F2F2F7]">
-              Switch User
-            </p>
-            {DEV_USERS.map(u => {
-              const isCurrent = u.role === currentRole;
-              return (
-                <form key={u.email} action={switchAction} onSubmit={() => setOpen(false)}>
-                  <input type="hidden" name="email" value={u.email} />
-                  <button
-                    type="submit"
-                    disabled={isCurrent}
-                    className="w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-[#F2F2F7] disabled:opacity-35 disabled:cursor-default transition-colors"
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: u.color }}
-                    />
-                    <span className="text-[13px] font-medium text-black flex-1">{u.label}</span>
-                    {isCurrent && (
-                      <span className="text-[10px] text-[#8E8E93]">you</span>
-                    )}
-                  </button>
-                </form>
-              );
-            })}
+          <div className="fixed inset-0 z-40" onClick={close} />
+          <div className="absolute bottom-8 left-0 z-50 w-56 bg-white rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.14)] border border-[#E5E5EA] overflow-hidden">
+            <div className="px-3 pt-2.5 pb-2 border-b border-[#F2F2F7]">
+              <p className="text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wider mb-1.5">Switch User</p>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by name or role…"
+                autoFocus
+                className="w-full h-7 px-2.5 rounded-lg bg-[#F2F2F7] text-[12px] text-black placeholder:text-[#C7C7CC] outline-none focus:bg-[#E5E5EA] transition-colors"
+              />
+            </div>
+            <div className="max-h-60 overflow-y-auto py-1">
+              {sorted.length === 0 ? (
+                <p className="px-3 py-3 text-[12px] text-[#8E8E93] text-center">No users found</p>
+              ) : sorted.map(u => {
+                const color = ROLE_COLORS[u.role] ?? '#8E8E93';
+                return (
+                  <form key={u.id} action={switchAction} onSubmit={close}>
+                    <input type="hidden" name="userId" value={u.id} />
+                    <input type="hidden" name="email" value={u.email} />
+                    <input type="hidden" name="role" value={u.role} />
+                    <button type="submit" className="w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-[#F2F2F7] transition-colors">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-black truncate leading-tight">{u.displayName}</p>
+                        <p className="text-[10px] text-[#8E8E93] leading-tight">{ROLE_LABELS[u.role] ?? u.role}</p>
+                      </div>
+                    </button>
+                  </form>
+                );
+              })}
+            </div>
+            <div className="border-t border-[#F2F2F7] px-3 py-1.5">
+              <p className="text-[10px] text-[#C7C7CC]">Magic link · fallback: Test1234!</p>
+            </div>
           </div>
         </>
       )}

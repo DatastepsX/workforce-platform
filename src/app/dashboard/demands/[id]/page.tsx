@@ -102,9 +102,9 @@ export default async function DemandDetailPage({ params }: PageProps) {
       </div>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-3 mb-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span
               className="text-[12px] font-semibold px-2.5 py-1 rounded-full"
               style={{ backgroundColor: STATUS_COLORS[demand.status] + '18', color: STATUS_COLORS[demand.status] }}
@@ -120,9 +120,9 @@ export default async function DemandDetailPage({ params }: PageProps) {
           </div>
           <h1 className="text-[28px] font-bold tracking-tight text-black leading-tight">{demand.title}</h1>
         </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+        <div className="flex flex-col items-start sm:items-end gap-2">
           {canEdit && nextStatuses.length > 0 && (
-            <div className="flex gap-2 flex-wrap justify-end">
+            <div className="flex gap-2 flex-wrap">
               {nextStatuses.map(s => (
                 <form key={s} action={updateDemandStatus.bind(null, id, s)}>
                   <button

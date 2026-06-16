@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { Sidebar } from './sidebar';
 import { DevDataGenerator } from '@/components/DevDataGenerator';
 import type { Profile } from '@/types/database';
@@ -13,12 +14,34 @@ async function signOut() {
 
 async function switchToUser(formData: FormData) {
   'use server';
+  const userId = formData.get('userId') as string;
   const email = formData.get('email') as string;
-  if (!email) return;
+  const role = formData.get('role') as string;
+  if (!userId && !email) return;
+
+  // Try admin magic link first (works for all users)
+  if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createAdminClient();
+      const targetEmail = email;
+      const { data } = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: targetEmail,
+        options: {
+          redirectTo: `${process.env.APP_URL ?? 'https://workforce-platform-omega.vercel.app'}${role === 'supplier' ? '/supplier' : '/dashboard'}`,
+        },
+      });
+      if (data?.properties?.action_link) {
+        redirect(data.properties.action_link);
+      }
+    } catch { /* fall through to password */ }
+  }
+
+  // Fallback: password sign-in (works for known test accounts)
   const supabase = await createClient();
   await supabase.auth.signOut();
   await supabase.auth.signInWithPassword({ email, password: 'Test1234!' });
-  redirect(email.includes('+supplier') ? '/supplier' : '/dashboard');
+  redirect(role === 'supplier' ? '/supplier' : '/dashboard');
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +63,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initial = displayName[0]?.toUpperCase() ?? '?';
   const canSeeDemands = ['admin', 'hiring_manager', 'recruiter'].includes(role);
 
+  // Fetch all profiles for user switcher
+  const { data: allProfilesData } = await supabase
+    .from('profiles')
+    .select('id, role, full_name, email')
+    .order('role');
+  const allUsers = ((allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[])
+    .filter(p => p.email)
+    .map(p => ({
+      id: p.id,
+      email: p.email!,
+      role: p.role,
+      displayName: p.full_name || p.email || p.id,
+    }));
+
   return (
     <div className="min-h-screen bg-[#F2F2F7]">
       <Sidebar
@@ -49,6 +86,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         canSeeDemands={canSeeDemands}
         signOut={signOut}
         switchToUser={switchToUser}
+        allUsers={allUsers}
       />
 
       {/*

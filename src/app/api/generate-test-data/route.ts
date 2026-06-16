@@ -18,6 +18,7 @@ interface FieldInfo {
 
 // Derive a role-based email prefix from the page path
 function prefixFromPath(path: string): string {
+  if (/\/careers/.test(path))   return 'applicant';
   if (/\/suppliers/.test(path)) return 'supplier';
   if (/\/candidates/.test(path)) return 'candidate';
   if (/\/profile/.test(path))   return 'candidate';
@@ -71,13 +72,19 @@ async function nextNumber(prefix: string): Promise<number> {
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = (await req.json()) as { path: string; fields: FieldInfo[] };
+  const isPublicPath = body?.path?.startsWith('/careers/');
+
+  if (!user && !isPublicPath) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }
 
-  const { path, fields } = (await req.json()) as { path: string; fields: FieldInfo[] };
+  const { path, fields } = body;
 
   // Determine the right email for this form before calling Claude
   const prefix = prefixFromPath(path);

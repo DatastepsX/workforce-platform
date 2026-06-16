@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { deleteSupplier } from '@/lib/actions/suppliers';
-import { DeleteButton } from '@/components/DeleteButton';
 import type { Supplier } from '@/types/database';
+import { SuppliersListClient } from './suppliers-list-client';
 
 export default async function SuppliersPage() {
   const supabase = await createClient();
@@ -48,69 +47,7 @@ export default async function SuppliersPage() {
           <p className="text-[15px] text-[#8E8E93]">Add your first supplier to start distributing demands.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
-          {suppliers.map((s, i) => (
-            <div key={s.id}>
-              {i > 0 && <div className="ml-[68px] h-px bg-[#F2F2F7]" />}
-              <div className="flex items-center gap-3 px-4 py-4">
-                {/* Avatar */}
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[15px] font-semibold flex-shrink-0"
-                  style={{ backgroundColor: s.status === 'active' ? '#007AFF' : '#8E8E93' }}
-                >
-                  {s.company_name[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[16px] font-semibold text-black truncate">{s.company_name}</p>
-                    {s.status === 'inactive' && (
-                      <span className="text-[11px] bg-[#8E8E93]/12 text-[#8E8E93] px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                        Inactive
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[13px] text-[#8E8E93] truncate">
-                    {s.contact_name ? `${s.contact_name} · ` : ''}{s.email}
-                  </p>
-                  {s.specializations.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {s.specializations.map(spec => (
-                        <span key={spec} className="text-[11px] bg-[#F2F2F7] text-[#3C3C43] px-2 py-0.5 rounded-full">
-                          {spec}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {s.phone && (
-                  <a
-                    href={`tel:${s.phone}`}
-                    className="text-[13px] text-[#007AFF] flex-shrink-0 hidden sm:block"
-                  >
-                    {s.phone}
-                  </a>
-                )}
-                {role === 'admin' && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Link
-                      href={`/dashboard/suppliers/${s.id}/edit`}
-                      className="px-2.5 py-1 rounded-lg text-[12px] font-medium text-[#007AFF] hover:bg-[#007AFF]/8 transition-colors"
-                    >
-                      Edit
-                    </Link>
-                    <DeleteButton
-                      action={deleteSupplier}
-                      id={s.id}
-                      confirmMessage={`Delete "${s.company_name}"? This cannot be undone.`}
-                      label="Delete"
-                      className="px-2.5 py-1 rounded-lg text-[12px] font-medium text-[#FF3B30] hover:bg-[#FF3B30]/8 transition-colors disabled:opacity-40"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        <SuppliersListClient suppliers={suppliers} role={role} />
       )}
     </div>
   );
