@@ -18,7 +18,8 @@ const STATUS_ORDER: SubmissionStatus[] = ['proposed', 'shortlisted', 'interview'
 export interface SubmissionRow {
   id: string;
   demandId: string;
-  supplierName: string;
+  supplierName: string | null;
+  source: 'supplier' | 'direct';
   status: SubmissionStatus;
   submittedAt: string;
   candidateName: string;
@@ -142,7 +143,11 @@ function CandidateDrawer({
             <InfoRow label="Phone" value={row.candidatePhone && (
               <a href={`tel:${row.candidatePhone}`} className="text-[#007AFF] hover:underline">{row.candidatePhone}</a>
             )} />
-            <InfoRow label="Submitted by" value={row.supplierName} />
+            <InfoRow label="Via" value={
+              row.source === 'direct'
+                ? <span className="font-semibold text-[#34C759]">Direct Application (Career Portal)</span>
+                : row.supplierName
+            } />
             <InfoRow label="Submitted on" value={new Date(row.submittedAt).toLocaleDateString('de-DE', {
               day: '2-digit', month: '2-digit', year: 'numeric',
             })} />
@@ -355,7 +360,13 @@ export function SubmissionsTableClient({
                       )}
                     </td>
                     <td className="px-3 py-3.5 align-top">
-                      <span className="text-[13px] text-[#3C3C43]">{row.supplierName}</span>
+                      {row.source === 'direct' ? (
+                        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#34C759]/12 text-[#34C759]">
+                          Direct
+                        </span>
+                      ) : (
+                        <span className="text-[13px] text-[#3C3C43]">{row.supplierName ?? '—'}</span>
+                      )}
                     </td>
                     <td className="px-3 py-3.5 align-top">
                       {row.candidateSkills.length > 0 ? (

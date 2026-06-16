@@ -58,6 +58,7 @@ export async function SubmissionsTable({ demandId, demandSkills, role }: Props) 
   const rows: SubmissionRow[] = await Promise.all(
     rawSubs.map(async s => {
       const sub = s as unknown as CandidateSubmission & {
+        source?: string;
         supplier_candidates?: {
           skills: string[];
           headline: string | null;
@@ -76,7 +77,8 @@ export async function SubmissionsTable({ demandId, demandSkills, role }: Props) 
       return {
         id: sub.id,
         demandId,
-        supplierName: supplierMap[sub.supplier_id] ?? '—',
+        supplierName: sub.supplier_id ? (supplierMap[sub.supplier_id] ?? '—') : null,
+        source: (sub.source as 'supplier' | 'direct') ?? 'supplier',
         status: sub.status as SubmissionStatus,
         submittedAt: sub.submitted_at,
         candidateName: sub.candidate_name,
