@@ -116,3 +116,25 @@ export interface DemandSupplier {
   status: DemandSupplierStatus;
   deadline: string | null;
 }
+
+export type EngagementStatus = 'active' | 'completed' | 'cancelled';
+
+export interface Engagement {
+  id: string;
+  demand_id: string;
+  submission_id: string | null;
+  supplier_id: string | null;
+  demand_title: string;
+  candidate_name: string;
+  candidate_email: string | null;
+  supplier_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  rate: number | null;
+  rate_type: string;
+  currency: string;
+  status: EngagementStatus;
+  notes: string | null;
+  created_at: string;
+  created_by: string | null;
+}

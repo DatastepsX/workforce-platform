@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { updateDemandSupplierStatus } from '@/lib/actions/suppliers';
-import type { Demand, DemandSupplier, DemandSupplierStatus } from '@/types/database';
+import type { Demand, DemandSupplier, DemandSupplierStatus, Engagement, EngagementStatus } from '@/types/database';
 
 const STATUS_COLORS: Record<DemandSupplierStatus, string> = {
   sent: '#007AFF',
@@ -84,6 +84,28 @@ export default async function SupplierPortalPage() {
   }
 
   const newCount = entries.filter(e => e.status === 'viewed' || e.status === 'sent').length;
+
+  // Fetch engagements for this supplier
+  let engagements: Engagement[] = [];
+  if (supplierData) {
+    const { data: engData } = await supabase
+      .from('engagements')
+      .select('*')
+      .eq('supplier_id', supplierData.id)
+      .order('created_at', { ascending: false });
+    engagements = (engData ?? []) as Engagement[];
+  }
+
+  const ENG_STATUS_META: Record<EngagementStatus, { label: string; color: string }> = {
+    active:    { label: 'Active',    color: '#34C759' },
+    completed: { label: 'Completed', color: '#007AFF' },
+    cancelled: { label: 'Cancelled', color: '#FF3B30' },
+  };
+
+  function fmtDate(d: string | null) {
+    if (!d) return null;
+    return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
 
   return (
     <div className="px-5 py-8 max-w-2xl mx-auto">
@@ -203,6 +225,45 @@ export default async function SupplierPortalPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Engagements section */}
+      {supplierData && engagements.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-[20px] font-bold text-black mb-1">Engagements</h2>
+          <p className="text-[14px] text-[#8E8E93] mb-4">Commissioned candidates from your submissions</p>
+          <div className="space-y-3">
+            {engagements.map(e => (
+              <div key={e.id} className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+                <div className="flex items-center justify-between mb-2">
+                  <span
+                    className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
+                    style={{ backgroundColor: ENG_STATUS_META[e.status].color + '18', color: ENG_STATUS_META[e.status].color }}
+                  >
+                    {ENG_STATUS_META[e.status].label}
+                  </span>
+                  <span className="text-[12px] text-[#8E8E93]">
+                    {new Date(e.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                </div>
+                <h3 className="text-[16px] font-bold text-black">{e.candidate_name}</h3>
+                <p className="text-[13px] text-[#8E8E93] mt-0.5 mb-3">{e.demand_title}</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-[#3C3C43]">
+                  {(e.start_date || e.end_date) && (
+                    <span>
+                      {fmtDate(e.start_date) ?? '?'}{e.end_date ? ` – ${fmtDate(e.end_date)}` : ''}
+                    </span>
+                  )}
+                  {e.rate && (
+                    <span className="font-semibold text-black">
+                      {e.currency} {e.rate.toLocaleString()} / {e.rate_type}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

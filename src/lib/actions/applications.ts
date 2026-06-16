@@ -1,7 +1,7 @@
 'use server';
 
 import { createAdminClient } from '@/lib/supabase/admin';
-import { emailCandidatesSubmitted } from '@/lib/email';
+import { emailCandidatesSubmitted, emailApplicationConfirmation } from '@/lib/email';
 
 export interface ApplyResult {
   success?: true;
@@ -89,6 +89,16 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
         demandTitle: demand.title,
         demandId,
         candidateNames: [name],
+      });
+    }
+
+    // Confirmation to candidate
+    if (demand) {
+      await emailApplicationConfirmation({
+        candidateEmail: email,
+        candidateName: name,
+        demandTitle: demand.title,
+        demandId,
       });
     }
   } catch { /* non-blocking */ }

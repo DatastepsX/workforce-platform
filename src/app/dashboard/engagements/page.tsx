@@ -1,0 +1,56 @@
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { EngagementsClient } from './engagements-client';
+import type { Engagement } from '@/types/database';
+
+export default async function EngagementsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single();
+  const role = profile?.role ?? '';
+  if (!['admin', 'recruiter', 'hiring_manager'].includes(role)) redirect('/dashboard');
+
+  const { data } = await supabase
+    .from('engagements')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  const engagements = (data ?? []) as Engagement[];
+
+  return (
+    <div className="px-8 py-10">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-[34px] font-bold tracking-tight text-black leading-tight">Engagements</h1>
+          <p className="text-[15px] text-[#8E8E93] mt-0.5">All commissioned candidates across demands</p>
+        </div>
+        {engagements.length > 0 && (
+          <span className="text-[13px] font-semibold text-[#8E8E93]">
+            {engagements.filter(e => e.status === 'active').length} active
+          </span>
+        )}
+      </div>
+
+      {engagements.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 text-center shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+          <div className="w-12 h-12 rounded-full bg-[#F2F2F7] flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-[#8E8E93]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
+            </svg>
+          </div>
+          <p className="text-[17px] font-semibold text-black mb-1">No engagements yet</p>
+          <p className="text-[14px] text-[#8E8E93] mb-5">Commission a candidate from a demand to create your first engagement.</p>
+          <Link href="/dashboard/demands" className="inline-block px-5 py-2.5 rounded-[10px] text-white text-[14px] font-semibold" style={{ backgroundColor: '#007AFF' }}>
+            Go to Demands →
+          </Link>
+        </div>
+      ) : (
+        <EngagementsClient engagements={engagements} />
+      )}
+    </div>
+  );
+}

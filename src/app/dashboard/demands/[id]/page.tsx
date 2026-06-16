@@ -253,7 +253,14 @@ export default async function DemandDetailPage({ params }: PageProps) {
           <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
             Candidate Submissions
           </p>
-          <SubmissionsTable demandId={id} demandSkills={demand.skills} role={role} />
+          <SubmissionsTable
+            demandId={id}
+            demandSkills={demand.skills}
+            demandTitle={demand.title}
+            demandStartDate={demand.start_date ?? ''}
+            demandEndDate={demand.end_date ?? ''}
+            role={role}
+          />
         </div>
       )}
 

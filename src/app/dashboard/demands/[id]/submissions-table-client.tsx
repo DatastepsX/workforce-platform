@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react';
 import { updateSubmissionStatus } from '@/lib/actions/submissions';
+import { createEngagement } from '@/lib/actions/engagements';
 import type { SubmissionStatus, UserRole } from '@/types/database';
 
 const STATUS_META: Record<SubmissionStatus, { label: string; color: string }> = {
@@ -18,7 +19,9 @@ const STATUS_ORDER: SubmissionStatus[] = ['proposed', 'shortlisted', 'interview'
 export interface SubmissionRow {
   id: string;
   demandId: string;
+  supplierId: string | null;
   supplierName: string | null;
+  supplierEmail: string | null;
   source: 'supplier' | 'direct';
   status: SubmissionStatus;
   submittedAt: string;
@@ -71,18 +74,119 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function CommissionPanel({
+  row,
+  demandTitle,
+  demandStartDate,
+  demandEndDate,
+  onCommissioned,
+}: {
+  row: SubmissionRow;
+  demandTitle: string;
+  demandStartDate: string;
+  demandEndDate: string;
+  onCommissioned: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [startDate, setStartDate]   = useState(demandStartDate);
+  const [endDate, setEndDate]       = useState(demandEndDate);
+  const [rate, setRate]             = useState(String(row.proposedRate ?? ''));
+  const [rateType, setRateType]     = useState(row.rateType ?? 'daily');
+  const [currency, setCurrency]     = useState('EUR');
+  const [notes, setNotes]           = useState('');
+  const [error, setError]           = useState<string | null>(null);
+
+  const inp = 'w-full bg-[#F2F2F7] rounded-lg px-3 py-2 text-[13px] text-black placeholder:text-[#8E8E93] outline-none border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white transition-colors';
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const result = await createEngagement({
+        submissionId:   row.id,
+        demandId:       row.demandId,
+        demandTitle,
+        candidateName:  row.candidateName,
+        candidateEmail: row.candidateEmail,
+        supplierId:     row.supplierId,
+        supplierName:   row.supplierName,
+        supplierEmail:  row.supplierEmail,
+        startDate, endDate, rate, rateType, currency, notes,
+      });
+      if (result.error) { setError(result.error); return; }
+      onCommissioned();
+    });
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-[#E5E5EA] space-y-3">
+      <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Commission Details</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Start Date</label>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inp} />
+        </div>
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">End Date</label>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inp} />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Rate</label>
+          <input type="number" min="0" value={rate} onChange={e => setRate(e.target.value)} placeholder="0" className={inp} />
+        </div>
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Per</label>
+          <select value={rateType} onChange={e => setRateType(e.target.value)} className={inp}>
+            <option value="daily">Day</option>
+            <option value="hourly">Hour</option>
+            <option value="monthly">Month</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Currency</label>
+          <select value={currency} onChange={e => setCurrency(e.target.value)} className={inp}>
+            <option>EUR</option><option>CHF</option><option>GBP</option><option>USD</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="text-[11px] text-[#8E8E93] mb-1 block">Notes (optional)</label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+          className={inp + ' resize-none'} placeholder="Internal notes…" />
+      </div>
+      {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
+      <button
+        onClick={submit}
+        disabled={isPending}
+        className="w-full py-2.5 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+        style={{ backgroundColor: '#34C759', boxShadow: '0 2px 8px rgba(52,199,89,0.3)' }}
+      >
+        {isPending ? 'Commissioning…' : '✓ Confirm Commission'}
+      </button>
+    </div>
+  );
+}
+
 function CandidateDrawer({
   row,
+  demandTitle,
+  demandStartDate,
+  demandEndDate,
   canAct,
   onClose,
   onStatusChange,
 }: {
   row: SubmissionRow;
+  demandTitle: string;
+  demandStartDate: string;
+  demandEndDate: string;
   canAct: boolean;
   onClose: () => void;
   onStatusChange: (id: string, status: SubmissionStatus) => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [showCommission, setShowCommission] = useState(false);
 
   function moveStatus(status: SubmissionStatus) {
     startTransition(async () => {
@@ -264,7 +368,24 @@ function CandidateDrawer({
         {/* Footer — status actions */}
         {canAct && (
           <div className="px-6 py-4 border-t border-[#F2F2F7] bg-[#F9F9FB]">
-            <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3">Move to Stage</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Move to Stage</p>
+              {row.status !== 'hired' && (
+                <button
+                  onClick={() => setShowCommission(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                    showCommission
+                      ? 'bg-[#34C759]/15 text-[#34C759]'
+                      : 'bg-[#34C759]/10 text-[#34C759] hover:bg-[#34C759]/20'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
+                  </svg>
+                  Commission
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               {STATUS_ORDER.filter(s => s !== row.status).map(s => {
                 const m = STATUS_META[s];
@@ -282,6 +403,18 @@ function CandidateDrawer({
                 );
               })}
             </div>
+            {showCommission && (
+              <CommissionPanel
+                row={row}
+                demandTitle={demandTitle}
+                demandStartDate={demandStartDate}
+                demandEndDate={demandEndDate}
+                onCommissioned={() => {
+                  onStatusChange(row.id, 'hired');
+                  setShowCommission(false);
+                }}
+              />
+            )}
           </div>
         )}
       </div>
@@ -324,10 +457,16 @@ function InlineSearch({ value, onChange, placeholder }: { value: string; onChang
 export function SubmissionsTableClient({
   rows: initialRows,
   role,
+  demandTitle,
+  demandStartDate,
+  demandEndDate,
 }: {
   rows: SubmissionRow[];
   demandSkills: string[];
   role: UserRole;
+  demandTitle: string;
+  demandStartDate: string;
+  demandEndDate: string;
 }) {
   const [rows, setRows] = useState(initialRows);
   const [selected, setSelected] = useState<SubmissionRow | null>(null);
@@ -528,6 +667,9 @@ export function SubmissionsTableClient({
       {selected && (
         <CandidateDrawer
           row={selected}
+          demandTitle={demandTitle}
+          demandStartDate={demandStartDate}
+          demandEndDate={demandEndDate}
           canAct={canAct}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}

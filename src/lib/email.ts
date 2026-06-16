@@ -109,3 +109,48 @@ export async function emailSubmissionStatusChanged(opts: {
 ${btn('View Details →', link)}`;
   await send(opts.toEmail, `${opts.candidateName} — ${label}`, layout('Status Update', body));
 }
+
+export async function emailApplicationConfirmation(opts: {
+  candidateEmail: string;
+  candidateName: string;
+  demandTitle: string;
+  demandId: string;
+}) {
+  const body = `
+<p style="color:#3C3C43;font-size:15px;line-height:1.6">Hi ${opts.candidateName},</p>
+<p style="color:#3C3C43;font-size:15px;line-height:1.6">Thank you for your application! We have received it and our team will be in touch shortly.</p>
+<div style="background:#F2F2F7;border-radius:10px;padding:16px;margin:16px 0">
+  <p style="font-size:13px;color:#8E8E93;margin:0 0 4px">Applied for</p>
+  <p style="font-size:17px;font-weight:600;margin:0;color:#000">${opts.demandTitle}</p>
+</div>
+<p style="color:#3C3C43;font-size:15px;line-height:1.6">Sign in to your account to complete your profile and track your application status.</p>
+${btn('Sign in to WorkforceX →', `${APP_URL}/login`)}`;
+  await send(opts.candidateEmail, `Application received: ${opts.demandTitle}`, layout('Application Received', body));
+}
+
+export async function emailEngagementCreated(opts: {
+  supplierEmail: string;
+  supplierName: string;
+  candidateName: string;
+  demandTitle: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  rate?: number | null;
+  currency?: string;
+}) {
+  const fmt = (d: string) => new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const rateStr = opts.rate ? `${opts.currency ?? 'EUR'} ${opts.rate.toLocaleString()} / ${opts.currency === 'EUR' ? 'Tag' : 'day'}` : null;
+  const body = `
+<p style="color:#3C3C43;font-size:15px;line-height:1.6">Hi ${opts.supplierName},</p>
+<p style="color:#3C3C43;font-size:15px;line-height:1.6">Great news! Your candidate has been selected:</p>
+<div style="background:#F2F2F7;border-radius:10px;padding:16px;margin:16px 0">
+  <p style="font-size:17px;font-weight:600;margin:0 0 10px;color:#000">${opts.candidateName}</p>
+  <p style="font-size:13px;color:#8E8E93;margin:0 0 4px">Position</p>
+  <p style="font-size:15px;font-weight:500;margin:0 0 10px;color:#000">${opts.demandTitle}</p>
+  ${opts.startDate ? `<p style="font-size:13px;color:#8E8E93;margin:0 0 2px">Start: ${fmt(opts.startDate)}</p>` : ''}
+  ${opts.endDate ? `<p style="font-size:13px;color:#8E8E93;margin:0 0 2px">End: ${fmt(opts.endDate)}</p>` : ''}
+  ${rateStr ? `<p style="font-size:13px;color:#8E8E93;margin:4px 0 0">Rate: <strong style="color:#000">${rateStr}</strong></p>` : ''}
+</div>
+${btn('View in Supplier Portal →', `${APP_URL}/supplier`)}`;
+  await send(opts.supplierEmail, `Candidate Commissioned: ${opts.candidateName}`, layout('Candidate Selected 🎉', body));
+}

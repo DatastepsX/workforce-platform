@@ -28,10 +28,13 @@ async function getSignedUrl(supabase: Awaited<ReturnType<typeof createClient>>, 
 interface Props {
   demandId: string;
   demandSkills: string[];
+  demandTitle: string;
+  demandStartDate: string;
+  demandEndDate: string;
   role: UserRole;
 }
 
-export async function SubmissionsTable({ demandId, demandSkills, role }: Props) {
+export async function SubmissionsTable({ demandId, demandSkills, demandTitle, demandStartDate, demandEndDate, role }: Props) {
   const supabase = await createClient();
 
   const { data: rawSubs } = await supabase
@@ -42,17 +45,20 @@ export async function SubmissionsTable({ demandId, demandSkills, role }: Props) 
 
   if (!rawSubs?.length) {
     return (
-      <SubmissionsTableClient rows={[]} demandSkills={demandSkills} role={role} />
+      <SubmissionsTableClient rows={[]} demandSkills={demandSkills} role={role}
+        demandTitle={demandTitle} demandStartDate={demandStartDate} demandEndDate={demandEndDate} />
     );
   }
 
-  // Supplier names
-  const supplierIds = Array.from(new Set(rawSubs.map(s => s.supplier_id)));
+  // Supplier names + emails
+  const supplierIds = Array.from(new Set(rawSubs.map(s => s.supplier_id).filter(Boolean)));
   const { data: suppliers } = await supabase
     .from('suppliers')
-    .select('id, company_name')
+    .select('id, company_name, email')
     .in('id', supplierIds);
-  const supplierMap = Object.fromEntries((suppliers ?? []).map(s => [s.id, s.company_name]));
+  const supplierMap = Object.fromEntries(
+    (suppliers ?? []).map(s => [s.id, { name: s.company_name, email: s.email }])
+  );
 
   // Resolve all signed URLs in parallel
   const rows: SubmissionRow[] = await Promise.all(
@@ -77,7 +83,9 @@ export async function SubmissionsTable({ demandId, demandSkills, role }: Props) 
       return {
         id: sub.id,
         demandId,
-        supplierName: sub.supplier_id ? (supplierMap[sub.supplier_id] ?? '—') : null,
+        supplierId: sub.supplier_id ?? null,
+        supplierName: sub.supplier_id ? (supplierMap[sub.supplier_id]?.name ?? '—') : null,
+        supplierEmail: sub.supplier_id ? (supplierMap[sub.supplier_id]?.email ?? null) : null,
         source: (sub.source as 'supplier' | 'direct') ?? 'supplier',
         status: sub.status as SubmissionStatus,
         submittedAt: sub.submitted_at,
@@ -108,5 +116,14 @@ export async function SubmissionsTable({ demandId, demandSkills, role }: Props) 
     return 0;
   });
 
-  return <SubmissionsTableClient rows={rows} demandSkills={demandSkills} role={role} />;
+  return (
+    <SubmissionsTableClient
+      rows={rows}
+      demandSkills={demandSkills}
+      role={role}
+      demandTitle={demandTitle}
+      demandStartDate={demandStartDate}
+      demandEndDate={demandEndDate}
+    />
+  );
 }

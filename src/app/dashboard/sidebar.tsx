@@ -128,6 +128,15 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
             </NavLink>
           )}
 
+          {['admin', 'recruiter', 'hiring_manager'].includes(role) && (
+            <NavLink href="/dashboard/engagements">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
+              </svg>
+              Engagements
+            </NavLink>
+          )}
+
           {role === 'candidate' && (
             <NavLink href="/dashboard/profile">
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -155,16 +164,16 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
 
         {/* User area */}
         <div className="border-t border-[#E5E5EA] p-3">
-          <div className="flex items-center gap-2.5 px-2 py-2">
+          <div className="flex items-center gap-2 px-2 py-2">
             <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0"
+              className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0"
               style={{ backgroundColor: '#007AFF' }}
             >
               {initial}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium text-black truncate leading-tight">{displayName}</p>
-              <p className="text-[11px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
+              <p className="text-[11px] font-semibold text-black truncate leading-tight">{displayName}</p>
+              <p className="text-[10px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
             </div>
             <DevUserSwitcher switchAction={switchToUser} allUsers={allUsers} />
           </div>
