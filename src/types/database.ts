@@ -32,6 +32,7 @@ export interface Demand {
   budget_min: number | null;
   budget_max: number | null;
   skills: string[];
+  channels: string[];
   experience_years: number | null;
   created_by: string;
   created_at: string;

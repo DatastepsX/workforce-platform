@@ -103,6 +103,15 @@ export default async function NewDemandPage() {
           </Field>
         </Section>
 
+        {/* Distribution */}
+        <Section label="Distribution Channels">
+          <p className="text-[13px] text-[#8E8E93] -mt-1">Choose how this demand reaches candidates.</p>
+          <div className="space-y-1">
+            <ChannelOption value="suppliers" label="Supplier Network" description="Send to your approved suppliers — they submit candidates on your behalf" defaultChecked />
+            <ChannelOption value="career_portal" label="Career Portal" description="Post publicly on /careers — candidates apply directly without an agency" />
+          </div>
+        </Section>
+
         {/* Submit */}
         <div className="flex gap-3 pt-2">
           <button
@@ -130,6 +139,27 @@ function Section({ label, children }: { label: string; children: React.ReactNode
       <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px]">{label}</p>
       {children}
     </div>
+  );
+}
+
+function ChannelOption({ value, label, description, defaultChecked }: {
+  value: string; label: string; description: string; defaultChecked?: boolean;
+}) {
+  return (
+    <label className="flex items-start gap-3 p-3.5 rounded-xl border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:bg-[#007AFF]/4 transition-colors cursor-pointer">
+      <input
+        type="checkbox"
+        name="channels"
+        value={value}
+        defaultChecked={defaultChecked}
+        className="mt-0.5 w-4 h-4 flex-shrink-0"
+        style={{ accentColor: '#007AFF' }}
+      />
+      <div>
+        <p className="text-[14px] font-semibold text-black leading-tight">{label}</p>
+        <p className="text-[12px] text-[#8E8E93] mt-0.5 leading-snug">{description}</p>
+      </div>
+    </label>
   );
 }
 

@@ -14,6 +14,7 @@ export default async function CareersPage() {
     .from('demands')
     .select('*')
     .eq('status', 'open')
+    .contains('channels', ['career_portal'])
     .order('created_at', { ascending: false });
 
   const demands = (data ?? []) as Demand[];

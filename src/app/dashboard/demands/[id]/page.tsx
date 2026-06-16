@@ -207,6 +207,27 @@ export default async function DemandDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Distribution Channels */}
+      {demand.channels && demand.channels.length > 0 && canEdit && (
+        <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] mb-4">
+          <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-3">Distribution Channels</p>
+          <div className="flex flex-wrap gap-2">
+            {demand.channels.includes('suppliers') && (
+              <span className="flex items-center gap-1.5 text-[13px] bg-[#8E8E93]/10 text-[#3C3C43] px-3 py-1 rounded-full font-medium">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                Supplier Network
+              </span>
+            )}
+            {demand.channels.includes('career_portal') && (
+              <span className="flex items-center gap-1.5 text-[13px] bg-[#34C759]/10 text-[#34C759] px-3 py-1 rounded-full font-medium">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+                Career Portal
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Send to Suppliers */}
       {canSendToSuppliers && (
         <SendToSuppliersPanel

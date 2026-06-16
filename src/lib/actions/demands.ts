@@ -30,6 +30,8 @@ export async function createDemand(formData: FormData) {
     .map(s => s.trim())
     .filter(Boolean);
 
+  const channels = formData.getAll('channels') as string[];
+
   const { data, error } = await supabase.from('demands').insert({
     title: formData.get('title') as string,
     description: formData.get('description') as string || null,
@@ -41,6 +43,7 @@ export async function createDemand(formData: FormData) {
     budget_min: formData.get('budget_min') ? Number(formData.get('budget_min')) : null,
     budget_max: formData.get('budget_max') ? Number(formData.get('budget_max')) : null,
     skills,
+    channels,
     experience_years: formData.get('experience_years') ? Number(formData.get('experience_years')) : null,
     priority: formData.get('priority') as DemandPriority,
     status: 'draft' as DemandStatus,
@@ -71,6 +74,8 @@ export async function updateDemand(formData: FormData) {
   const skills = (formData.get('skills') as string)
     .split(',').map(s => s.trim()).filter(Boolean);
 
+  const channels = formData.getAll('channels') as string[];
+
   const { error } = await supabase.from('demands').update({
     title: formData.get('title') as string,
     description: (formData.get('description') as string) || null,
@@ -82,6 +87,7 @@ export async function updateDemand(formData: FormData) {
     budget_min: formData.get('budget_min') ? Number(formData.get('budget_min')) : null,
     budget_max: formData.get('budget_max') ? Number(formData.get('budget_max')) : null,
     skills,
+    channels,
     experience_years: formData.get('experience_years') ? Number(formData.get('experience_years')) : null,
     priority: formData.get('priority') as DemandPriority,
   }).eq('id', id);
