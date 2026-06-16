@@ -139,12 +139,13 @@ export default async function DashboardPage() {
         <div className="bg-white rounded-2xl p-6 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
           <p className="text-[17px] font-semibold text-black mb-1">Complete your profile</p>
           <p className="text-[15px] text-[#8E8E93] mb-4">Add your details to start applying to open positions.</p>
-          <button
-            className="px-5 py-2.5 rounded-[10px] text-white text-[15px] font-semibold"
+          <Link
+            href="/dashboard/profile"
+            className="inline-block px-5 py-2.5 rounded-[10px] text-white text-[15px] font-semibold"
             style={{ backgroundColor: '#007AFF' }}
           >
             Edit profile
-          </button>
+          </Link>
         </div>
       )}
     </div>

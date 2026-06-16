@@ -27,18 +27,21 @@ export default async function ProfilePage() {
     cvSignedUrl = data?.signedUrl ?? null;
   }
 
+  const displayName = profile?.full_name || profile?.email || user.email || '';
+  const userEmail   = profile?.email || user.email || '';
+
   return (
     <div className="px-6 py-10 max-w-2xl">
       <div className="mb-8">
         <h1 className="text-[34px] font-bold tracking-tight text-black leading-tight">My Profile</h1>
-        <p className="text-[15px] text-[#8E8E93] mt-0.5">
-          {profile?.full_name || profile?.email || user.email}
-        </p>
+        <p className="text-[15px] text-[#8E8E93] mt-0.5">{displayName}</p>
       </div>
       <ProfileForm
         userId={user.id}
+        userName={displayName}
+        userEmail={userEmail}
         initialProfile={cp}
-        cvSignedUrl={cvSignedUrl}
+        initialCvSignedUrl={cvSignedUrl}
       />
     </div>
   );

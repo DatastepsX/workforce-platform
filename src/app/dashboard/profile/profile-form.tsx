@@ -5,6 +5,119 @@ import { createClient } from '@/lib/supabase/client';
 import { upsertCandidateProfile } from '@/lib/actions/candidates';
 import type { CandidateProfile, AvailabilityType, RemotePreference } from '@/types/database';
 
+// ── CV generation (dynamic import to avoid SSR issues) ───────────────────────
+
+async function buildAndUploadCv(d: {
+  userId: string; userName: string; userEmail: string;
+  headline: string; bio: string; skills: string[];
+  yearsExp: string; seniority: string; availability: string;
+  location: string; remotePref: string; languages: string[];
+  rateMin: string; rateMax: string; currency: string;
+  linkedin: string; portfolio: string; prefEmp: string[];
+}): Promise<{ path: string; signedUrl: string | null }> {
+  const { pdf, Document, Page, Text, View, StyleSheet } =
+    await import('@react-pdf/renderer');
+
+  const s = StyleSheet.create({
+    page:         { fontFamily: 'Helvetica', fontSize: 10, padding: 48, color: '#1A1A1A', lineHeight: 1.5 },
+    name:         { fontSize: 22, fontFamily: 'Helvetica-Bold', marginBottom: 3 },
+    headlineTxt:  { fontSize: 12, color: '#555555', marginBottom: 10 },
+    contactRow:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18, color: '#555555', fontSize: 9 },
+    divider:      { borderBottomWidth: 0.5, borderBottomColor: '#DDDDDD', marginBottom: 14 },
+    sectionTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#007AFF', letterSpacing: 0.6, marginBottom: 5, textTransform: 'uppercase' },
+    body:         { fontSize: 10, color: '#333333', lineHeight: 1.6, marginBottom: 10 },
+    tagRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
+    tag:          { backgroundColor: '#EBF3FF', color: '#007AFF', fontSize: 9, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 4 },
+    detailRow:    { flexDirection: 'row', gap: 24, marginBottom: 4 },
+    detailLabel:  { fontSize: 9, color: '#888888' },
+    detailValue:  { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1A1A1A' },
+    section:      { marginBottom: 14 },
+  });
+
+  const seniorityLabel: Record<string, string> = { junior: 'Junior', mid: 'Mid', senior: 'Senior', lead: 'Lead' };
+  const remoteLabel:    Record<string, string>  = { onsite: 'On-site', hybrid: 'Hybrid', remote: 'Full remote', flexible: 'Flexible' };
+  const availLabel:     Record<string, string>  = { immediate: 'Immediately available', notice_period: 'Notice period', not_available: 'Not available' };
+  const displayName = d.userName || d.userEmail;
+
+  const doc = (
+    <Document title={`${displayName} – CV`} author={displayName}>
+      <Page size="A4" style={s.page}>
+        <Text style={s.name}>{displayName}</Text>
+        {!!d.headline && <Text style={s.headlineTxt}>{d.headline}</Text>}
+        <View style={s.contactRow}>
+          {!!d.location  && <Text>{d.location}</Text>}
+          {!!d.userEmail && <Text>·  {d.userEmail}</Text>}
+          {!!d.linkedin  && <Text>·  {d.linkedin}</Text>}
+          {!!d.portfolio && <Text>·  {d.portfolio}</Text>}
+        </View>
+        <View style={s.divider} />
+
+        {!!d.bio && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Professional Summary</Text>
+            <Text style={s.body}>{d.bio}</Text>
+          </View>
+        )}
+
+        {d.skills.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Skills</Text>
+            <View style={s.tagRow}>
+              {d.skills.map((sk, i) => <View key={i} style={s.tag}><Text>{sk}</Text></View>)}
+            </View>
+          </View>
+        )}
+
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Details</Text>
+          <View style={s.detailRow}>
+            {!!d.yearsExp     && <View><Text style={s.detailLabel}>Experience</Text><Text style={s.detailValue}>{d.yearsExp} years</Text></View>}
+            {!!d.seniority    && <View><Text style={s.detailLabel}>Seniority</Text><Text style={s.detailValue}>{seniorityLabel[d.seniority] ?? d.seniority}</Text></View>}
+            {!!d.availability && <View><Text style={s.detailLabel}>Availability</Text><Text style={s.detailValue}>{availLabel[d.availability] ?? d.availability}</Text></View>}
+            {!!d.remotePref   && <View><Text style={s.detailLabel}>Remote</Text><Text style={s.detailValue}>{remoteLabel[d.remotePref] ?? d.remotePref}</Text></View>}
+          </View>
+        </View>
+
+        {d.languages.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Languages</Text>
+            <Text style={s.body}>{d.languages.join('  ·  ')}</Text>
+          </View>
+        )}
+
+        {d.prefEmp.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Employment Preferences</Text>
+            <Text style={s.body}>{d.prefEmp.map(e => e.charAt(0).toUpperCase() + e.slice(1)).join('  ·  ')}</Text>
+          </View>
+        )}
+
+        {(!!d.rateMin || !!d.rateMax) && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Rate</Text>
+            <Text style={s.body}>
+              {d.currency}{' '}
+              {d.rateMin && d.rateMax
+                ? `${d.rateMin} – ${d.rateMax} / hr`
+                : d.rateMin ? `from ${d.rateMin} / hr` : `up to ${d.rateMax} / hr`}
+            </Text>
+          </View>
+        )}
+      </Page>
+    </Document>
+  );
+
+  const blob = await pdf(doc).toBlob();
+  const supabase = createClient();
+  const path = `${d.userId}/cv.pdf`;
+  const { error: uploadErr } = await supabase.storage
+    .from('cvs')
+    .upload(path, blob, { upsert: true, contentType: 'application/pdf' });
+  if (uploadErr) throw new Error(uploadErr.message);
+  const { data: urlData } = await supabase.storage.from('cvs').createSignedUrl(path, 3600);
+  return { path, signedUrl: urlData?.signedUrl ?? null };
+}
+
 // ── Completion ────────────────────────────────────────────────────────────────
 
 function calcCompletion(s: {
@@ -96,19 +209,18 @@ function TagInput({ tags, onChange, placeholder, name }: {
 
 // ── CV uploader ───────────────────────────────────────────────────────────────
 
-function CVUploader({ userId, cvPath, cvSignedUrl, onUploaded }: {
+function CVUploader({ userId, cvPath, signedUrl, onUploaded }: {
   userId: string;
   cvPath: string | null;
-  cvSignedUrl: string | null;
-  onUploaded: (path: string) => void;
+  signedUrl: string | null;
+  onUploaded: (path: string, signedUrl: string | null) => void;
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [localUrl, setLocalUrl] = useState<string | null>(cvSignedUrl);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const hasCV = !!cvPath || !!localUrl;
+  const hasCV = !!cvPath;
 
   async function handleFile(file: File) {
     if (file.type !== 'application/pdf') { setError('Only PDF files are accepted'); return; }
@@ -126,8 +238,7 @@ function CVUploader({ userId, cvPath, cvSignedUrl, onUploaded }: {
       setError(err.message);
     } else {
       const { data } = await supabase.storage.from('cvs').createSignedUrl(path, 3600);
-      setLocalUrl(data?.signedUrl ?? null);
-      onUploaded(path);
+      onUploaded(path, data?.signedUrl ?? null);
     }
     setUploading(false);
   }
@@ -168,8 +279,8 @@ function CVUploader({ userId, cvPath, cvSignedUrl, onUploaded }: {
               </svg>
             </div>
             <p className="text-[14px] font-semibold text-[#34C759]">CV uploaded</p>
-            {localUrl && (
-              <a href={localUrl} target="_blank" rel="noopener noreferrer"
+            {signedUrl && (
+              <a href={signedUrl} target="_blank" rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 className="text-[13px] text-[#007AFF] underline">
                 Download / Preview
@@ -220,14 +331,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 interface Props {
   userId: string;
+  userName: string;
+  userEmail: string;
   initialProfile: CandidateProfile | null;
-  cvSignedUrl: string | null;
+  initialCvSignedUrl: string | null;
 }
 
-export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
+export function ProfileForm({ userId, userName, userEmail, initialProfile: p, initialCvSignedUrl }: Props) {
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isFilling, setIsFilling] = useState(false);
+  const [fillSuccess, setFillSuccess] = useState(false);
+  const [fillError, setFillError] = useState<string | null>(null);
 
   // Form state
   const [headline,     setHeadline]     = useState(p?.headline ?? '');
@@ -248,8 +364,104 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
   const [portfolio,    setPortfolio]    = useState(p?.portfolio_url ?? '');
   const [prefEmp,      setPrefEmp]      = useState<string[]>(p?.preferred_employment ?? []);
   const [cvPath,       setCvPath]       = useState<string | null>(p?.cv_path ?? null);
+  const [cvSignedUrl,  setCvSignedUrl]  = useState<string | null>(initialCvSignedUrl);
 
   const completion = calcCompletion({ headline, bio, skills, yearsExp, seniority, availability, location, languages, linkedIn: linkedin, cvPath });
+
+  const VALID_EMP = ['permanent', 'freelance', 'contractor', 'internship'] as const;
+
+  async function fillWithAI() {
+    setIsFilling(true);
+    setFillError(null);
+    setFillSuccess(false);
+    try {
+      const res = await fetch('/api/generate-test-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: '/dashboard/profile',
+          fields: [
+            { name: 'headline',           type: 'text',     label: 'Professional Headline', placeholder: 'Senior Data Engineer · 8 years in Python & Spark' },
+            { name: 'bio',                type: 'textarea', label: 'Professional Bio / Summary' },
+            { name: 'skills',             type: 'tags',     label: 'Technical & Professional Skills' },
+            { name: 'years_experience',   type: 'number',   label: 'Years of Experience' },
+            { name: 'seniority_level',    type: 'select',   label: 'Seniority Level',       options: [{ value: 'junior', label: 'Junior' }, { value: 'mid', label: 'Mid' }, { value: 'senior', label: 'Senior' }, { value: 'lead', label: 'Lead' }] },
+            { name: 'availability_type',  type: 'select',   label: 'Availability Status',   options: [{ value: 'immediate', label: 'Immediately available' }, { value: 'notice_period', label: 'Notice period' }] },
+            { name: 'notice_period_weeks',type: 'number',   label: 'Notice Period (weeks)' },
+            { name: 'location',           type: 'text',     label: 'Location',              placeholder: 'München, Germany' },
+            { name: 'remote_preference',  type: 'select',   label: 'Remote Preference',     options: [{ value: 'onsite', label: 'On-site only' }, { value: 'hybrid', label: 'Hybrid' }, { value: 'remote', label: 'Full remote' }, { value: 'flexible', label: 'Flexible' }] },
+            { name: 'languages',          type: 'tags',     label: 'Spoken Languages' },
+            { name: 'hourly_rate_min',    type: 'number',   label: 'Minimum Hourly Rate (EUR)' },
+            { name: 'hourly_rate_max',    type: 'number',   label: 'Maximum Hourly Rate (EUR)' },
+            { name: 'currency',           type: 'select',   label: 'Currency',              options: [{ value: 'EUR', label: 'EUR €' }, { value: 'CHF', label: 'CHF ₣' }, { value: 'GBP', label: 'GBP £' }, { value: 'USD', label: 'USD $' }] },
+            { name: 'linkedin_url',       type: 'url',      label: 'LinkedIn URL' },
+            { name: 'portfolio_url',      type: 'url',      label: 'Portfolio / Website URL' },
+            { name: 'preferred_employment', type: 'tags',   label: 'Preferred Employment Types', placeholder: 'permanent, freelance, contractor, internship' },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json() as Record<string, string>;
+
+      const newHeadline  = data.headline            || headline;
+      const newBio       = data.bio                 || bio;
+      const newSkills    = data.skills ? data.skills.split(',').map(s => s.trim()).filter(Boolean) : skills;
+      const newYearsExp  = data.years_experience    || yearsExp;
+      const newSeniority = data.seniority_level     || seniority;
+      const newAvail     = (data.availability_type as AvailabilityType) || availability;
+      const newNotice    = data.notice_period_weeks || noticePeriod;
+      const newLocation  = data.location            || location;
+      const newRemote    = (data.remote_preference as RemotePreference) || remotePref;
+      const newLanguages = data.languages ? data.languages.split(',').map(s => s.trim()).filter(Boolean) : languages;
+      const newRateMin   = data.hourly_rate_min     || rateMin;
+      const newRateMax   = data.hourly_rate_max     || rateMax;
+      const newCurrency  = data.currency            || currency;
+      const newLinkedin  = data.linkedin_url        || linkedin;
+      const newPortfolio = data.portfolio_url       || portfolio;
+      const newPrefEmp   = data.preferred_employment
+        ? data.preferred_employment.split(',').map(s => s.trim().toLowerCase()).filter(s => (VALID_EMP as readonly string[]).includes(s))
+        : prefEmp;
+
+      setHeadline(newHeadline);
+      setBio(newBio);
+      setSkills(newSkills);
+      setYearsExp(newYearsExp);
+      setSeniority(newSeniority);
+      setAvailability(newAvail);
+      if (newNotice) setNoticePeriod(newNotice);
+      setLocation(newLocation);
+      setRemotePref(newRemote);
+      setLanguages(newLanguages);
+      setRateMin(newRateMin);
+      setRateMax(newRateMax);
+      setCurrency(newCurrency);
+      setLinkedin(newLinkedin);
+      setPortfolio(newPortfolio);
+      if (newPrefEmp.length > 0) setPrefEmp(newPrefEmp);
+
+      // Generate and upload CV PDF automatically
+      const { path, signedUrl } = await buildAndUploadCv({
+        userId, userName, userEmail,
+        headline: newHeadline, bio: newBio, skills: newSkills,
+        yearsExp: newYearsExp, seniority: newSeniority, availability: newAvail,
+        location: newLocation, remotePref: newRemote, languages: newLanguages,
+        rateMin: newRateMin, rateMax: newRateMax, currency: newCurrency,
+        linkedin: newLinkedin, portfolio: newPortfolio, prefEmp: newPrefEmp,
+      });
+      setCvPath(path);
+      setCvSignedUrl(signedUrl);
+
+      setFillSuccess(true);
+      setTimeout(() => setFillSuccess(false), 4000);
+    } catch (e) {
+      setFillError(e instanceof Error ? e.message : 'AI fill failed');
+    } finally {
+      setIsFilling(false);
+    }
+  }
 
   const barColor =
     completion >= 100 ? '#34C759' :
@@ -299,7 +511,34 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
       <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[13px] font-semibold text-black">Profile completion</p>
-          <span className="text-[13px] font-bold" style={{ color: barColor }}>{completion}%</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-bold" style={{ color: barColor }}>{completion}%</span>
+            <button
+              type="button"
+              onClick={fillWithAI}
+              disabled={isFilling}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-wait"
+              style={{
+                color: fillSuccess ? '#34C759' : '#007AFF',
+                backgroundColor: fillSuccess ? 'rgba(52,199,89,0.1)' : 'rgba(0,122,255,0.08)',
+              }}
+            >
+              {isFilling ? (
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                </svg>
+              ) : fillSuccess ? (
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+                </svg>
+              )}
+              {isFilling ? 'Generating…' : fillSuccess ? 'Profile + CV ready!' : 'Fill with AI'}
+            </button>
+          </div>
         </div>
         <div className="h-2 bg-[#F2F2F7] rounded-full overflow-hidden">
           <div
@@ -307,7 +546,9 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
             style={{ width: `${completion}%`, backgroundColor: barColor }}
           />
         </div>
-        {completion < 100 && (
+        {fillError && <p className="text-[12px] text-[#FF3B30] mt-2">{fillError}</p>}
+        {isFilling && <p className="text-[12px] text-[#007AFF] mt-2">Generating profile data and CV with AI…</p>}
+        {!fillError && !isFilling && completion < 100 && (
           <p className="text-[12px] text-[#8E8E93] mt-2">
             {completion < 40
               ? 'Complete your profile to be discovered by recruiters.'
@@ -332,13 +573,13 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
       {/* Summary */}
       <Section label="Professional Summary">
         <Field label="Headline">
-          <input value={headline} onChange={e => setHeadline(e.target.value)}
+          <input name="headline" value={headline} onChange={e => setHeadline(e.target.value)}
             placeholder="e.g. Senior Data Engineer · 8 years in Python & Spark"
             className={inputCls} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Seniority Level">
-            <select value={seniority} onChange={e => setSeniority(e.target.value)} className={inputCls}>
+            <select name="seniority_level" value={seniority} onChange={e => setSeniority(e.target.value)} className={inputCls}>
               <option value="">— Select —</option>
               <option value="junior">Junior</option>
               <option value="mid">Mid</option>
@@ -347,13 +588,13 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
             </select>
           </Field>
           <Field label="Years of Experience">
-            <input type="number" min="0" max="50" value={yearsExp}
+            <input name="years_experience" type="number" min="0" max="50" value={yearsExp}
               onChange={e => setYearsExp(e.target.value)}
               placeholder="e.g. 8" className={inputCls} />
           </Field>
         </div>
         <Field label="Bio">
-          <textarea value={bio} onChange={e => setBio(e.target.value)} rows={4}
+          <textarea name="bio" value={bio} onChange={e => setBio(e.target.value)} rows={4}
             placeholder="Short professional introduction — what you do, what you're looking for…"
             className={inputCls + ' resize-none'} />
         </Field>
@@ -370,7 +611,7 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
       {/* Availability */}
       <Section label="Availability">
         <Field label="Status">
-          <select value={availability}
+          <select name="availability_type" value={availability}
             onChange={e => setAvailability(e.target.value as AvailabilityType)}
             className={inputCls}>
             <option value="immediate">Immediately available</option>
@@ -381,12 +622,12 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
         {availability === 'notice_period' && (
           <div className="grid grid-cols-2 gap-3">
             <Field label="Notice Period (weeks)">
-              <input type="number" min="1" max="52" value={noticePeriod}
+              <input name="notice_period_weeks" type="number" min="1" max="52" value={noticePeriod}
                 onChange={e => setNoticePeriod(e.target.value)}
                 placeholder="e.g. 4" className={inputCls} />
             </Field>
             <Field label="Available from">
-              <input type="date" value={availDate}
+              <input name="availability_date" type="date" value={availDate}
                 onChange={e => setAvailDate(e.target.value)}
                 className={inputCls} />
             </Field>
@@ -394,7 +635,7 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
         )}
         {availability === 'immediate' && (
           <Field label="Available from (optional)">
-            <input type="date" value={availDate}
+            <input name="availability_date" type="date" value={availDate}
               onChange={e => setAvailDate(e.target.value)}
               className={inputCls} />
           </Field>
@@ -405,11 +646,11 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
       <Section label="Work Preferences">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Location">
-            <input value={location} onChange={e => setLocation(e.target.value)}
+            <input name="location" value={location} onChange={e => setLocation(e.target.value)}
               placeholder="e.g. München, Germany" className={inputCls} />
           </Field>
           <Field label="Remote Preference">
-            <select value={remotePref}
+            <select name="remote_preference" value={remotePref}
               onChange={e => setRemotePref(e.target.value as RemotePreference)}
               className={inputCls}>
               <option value="onsite">On-site only</option>
@@ -443,17 +684,17 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
       <Section label="Rate / Compensation">
         <div className="grid grid-cols-3 gap-3">
           <Field label="Min (hourly)">
-            <input type="number" min="0" value={rateMin}
+            <input name="hourly_rate_min" type="number" min="0" value={rateMin}
               onChange={e => setRateMin(e.target.value)}
               placeholder="0" className={inputCls} />
           </Field>
           <Field label="Max (hourly)">
-            <input type="number" min="0" value={rateMax}
+            <input name="hourly_rate_max" type="number" min="0" value={rateMax}
               onChange={e => setRateMax(e.target.value)}
               placeholder="0" className={inputCls} />
           </Field>
           <Field label="Currency">
-            <select value={currency} onChange={e => setCurrency(e.target.value)} className={inputCls}>
+            <select name="currency" value={currency} onChange={e => setCurrency(e.target.value)} className={inputCls}>
               <option value="EUR">EUR €</option>
               <option value="CHF">CHF ₣</option>
               <option value="GBP">GBP £</option>
@@ -474,11 +715,11 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
       {/* Links */}
       <Section label="Online Presence">
         <Field label="LinkedIn URL">
-          <input type="url" value={linkedin} onChange={e => setLinkedin(e.target.value)}
+          <input name="linkedin_url" type="url" value={linkedin} onChange={e => setLinkedin(e.target.value)}
             placeholder="https://linkedin.com/in/yourname" className={inputCls} />
         </Field>
         <Field label="Portfolio / Website">
-          <input type="url" value={portfolio} onChange={e => setPortfolio(e.target.value)}
+          <input name="portfolio_url" type="url" value={portfolio} onChange={e => setPortfolio(e.target.value)}
             placeholder="https://yoursite.com" className={inputCls} />
         </Field>
       </Section>
@@ -488,8 +729,8 @@ export function ProfileForm({ userId, initialProfile: p, cvSignedUrl }: Props) {
         <CVUploader
           userId={userId}
           cvPath={cvPath}
-          cvSignedUrl={cvSignedUrl}
-          onUploaded={path => setCvPath(path)}
+          signedUrl={cvSignedUrl}
+          onUploaded={(path, url) => { setCvPath(path); setCvSignedUrl(url); }}
         />
       </Section>
 
