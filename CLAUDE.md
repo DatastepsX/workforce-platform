@@ -35,7 +35,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Email Notifications**: 5 functions (demand sent, candidates submitted, status changed, application confirmation, engagement created)
 - **AI Test Data**: `DevDataGenerator` (✨ button) fills forms with Claude-generated realistic DACH enterprise data, context-aware via page H1/H2
 - **Dev User Switcher**: switch between test users from sidebar (all roles → all roles)
-- **Social Media Module**: planned, not yet implemented — spec in `social_media_module_spec.md`; migration (section 3 of spec) not yet applied to Supabase
+- **Social Media Module**: generate posts (Instagram, Facebook, LinkedIn, TikTok) for demands with `career_portal` channel; status workflow draft→approved→posted/rejected→archived; canvas image generation with QR code client-side; migration `20260617000016_social_media.sql` must be run in Supabase SQL editor
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
@@ -68,6 +68,9 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 ### `candidate_submissions`
 `id`, `demand_id`, `supplier_id`, `candidate_profile_id` (FK candidate_profiles — direct applicants), `supplier_candidate_id` (FK supplier_candidates — supplier submissions), `candidate_name`, `candidate_email`, `status` (proposed/shortlisted/interview/offer/hired/rejected), `source` (supplier/direct), `submitted_at`, `cv_path`, `proposed_rate`, `rate_type`, `notes`
 
+### `social_posts`
+`id`, `demand_id` (FK demands), `platform` (enum: instagram/facebook/linkedin/tiktok/x), `status` (enum: draft/approved/posted/archived/rejected), `caption`, `hashtags` (text[]), `image_path`, `tracking_code` (unique 8-char code), `tracking_url`, `created_by`, `approved_by`, `approved_at`, `posted_at`, `external_post_url`, `created_at`, `updated_at`
+
 ### `engagements`
 `id`, `demand_id` (FK demands), `submission_id` (FK candidate_submissions), `supplier_id` (FK suppliers), `demand_title`, `candidate_name`, `candidate_email`, `supplier_name`, `start_date`, `end_date`, `rate`, `rate_type`, `currency`, `status` (active/completed/cancelled), `notes`, `created_by` (FK profiles), `created_at`
 
@@ -90,6 +93,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 | `20260616000013_demand_channels.sql` | channels column (text[]) on demands |
 | `20260616000014_engagements.sql` | engagements table + RLS |
 | `20260616000015_profiles_read_all.sql` | `profiles_select_all_authenticated` policy — all auth users can read all profiles (user switcher) |
+| `20260617000016_social_media.sql` | `social_posts` table + `social_platform` / `social_post_status` enums + RLS |
 
 ## Storage Buckets
 Both buckets are **private** (RLS-protected), max 10 MB, PDF only.
@@ -118,7 +122,7 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | `/dashboard` | Overview — role-aware stats (demands, engagements, applications, best match %) |
 | `/dashboard/demands` | Demand list, filterable by status |
 | `/dashboard/demands/new` | Create demand |
-| `/dashboard/demands/[id]` | Demand detail — submissions table, "Position Filled" banner, engagements section |
+| `/dashboard/demands/[id]` | Demand detail — submissions table, "Position Filled" banner, engagements section, Social Media section (only when `career_portal` in channels) |
 | `/dashboard/demands/[id]/edit` | Edit demand |
 | `/dashboard/demands/[id]/submissions` | Full submissions view |
 | `/dashboard/candidates` | Candidates list (admin/recruiter only) |

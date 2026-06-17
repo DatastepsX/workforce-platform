@@ -119,6 +119,28 @@ export interface DemandSupplier {
 
 export type EngagementStatus = 'active' | 'completed' | 'cancelled';
 
+export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'x';
+export type SocialPostStatus = 'draft' | 'approved' | 'posted' | 'archived' | 'rejected';
+
+export interface SocialPost {
+  id: string;
+  demand_id: string;
+  platform: SocialPlatform;
+  status: SocialPostStatus;
+  caption: string | null;
+  hashtags: string[];
+  image_path: string | null;
+  tracking_code: string;
+  tracking_url: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  posted_at: string | null;
+  external_post_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Engagement {
   id: string;
   demand_id: string;

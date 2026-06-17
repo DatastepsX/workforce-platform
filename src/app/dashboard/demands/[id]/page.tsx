@@ -7,6 +7,7 @@ import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
 import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus } from '@/types/database';
+import { SocialMediaTab } from './social-media-tab';
 
 const STATUS_COLORS: Record<DemandStatus, string> = {
   draft: '#8E8E93',
@@ -359,6 +360,16 @@ export default async function DemandDetailPage({ params }: PageProps) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Social Media */}
+      {demand.channels?.includes('career_portal') && canViewSubmissions && (
+        <div className="mt-6">
+          <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
+            Social Media
+          </p>
+          <SocialMediaTab demand={demand} canEdit={canEdit} />
         </div>
       )}
 
