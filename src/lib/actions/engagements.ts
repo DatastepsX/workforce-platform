@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { emailEngagementCreated } from '@/lib/email';
+import { createNotifications } from '@/lib/actions/notifications';
 import type { EngagementStatus } from '@/types/database';
 
 export interface CreateEngagementInput {
@@ -20,6 +21,8 @@ export interface CreateEngagementInput {
   rateType: string;
   currency: string;
   notes: string;
+  totalAmount: number | null;
+  priceLocked: boolean;
 }
 
 export async function createEngagement(input: CreateEngagementInput): Promise<{ error?: string }> {
@@ -46,6 +49,8 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
     rate:           input.rate ? Number(input.rate) : null,
     rate_type:      input.rateType || 'daily',
     currency:       input.currency || 'EUR',
+    total_amount:   input.totalAmount ?? null,
+    price_locked:   input.priceLocked ?? false,
     notes:          input.notes || null,
     created_by:     user.id,
     status:         'active',
@@ -64,7 +69,7 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
       .eq('id', input.demandId),
   ]);
 
-  // Notify supplier
+  // Notify supplier (email + in-app)
   if (input.supplierId && input.supplierEmail && input.supplierName) {
     try {
       await emailEngagementCreated({
@@ -78,7 +83,45 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
         currency:      input.currency || 'EUR',
       });
     } catch { /* non-blocking */ }
+
+    // In-app: find supplier's user account
+    try {
+      const { data: supplierRecord } = await supabase
+        .from('suppliers')
+        .select('profile_id')
+        .eq('id', input.supplierId)
+        .single();
+      if (supplierRecord?.profile_id) {
+        await createNotifications({
+          userIds: [supplierRecord.profile_id],
+          type: 'engagement_created',
+          title: `Candidate commissioned: ${input.candidateName}`,
+          body: `For demand "${input.demandTitle}"`,
+          relatedId: input.demandId,
+          relatedType: 'demand',
+        });
+      }
+    } catch { /* non-blocking */ }
   }
+
+  // Notify recruiter/admin that engagement was created
+  try {
+    const { data: recruiters } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('role', ['recruiter', 'admin']);
+    const ids = (recruiters ?? []).map(r => r.id).filter(Boolean);
+    if (ids.length) {
+      await createNotifications({
+        userIds: ids,
+        type: 'engagement_created',
+        title: `Engagement created: ${input.candidateName}`,
+        body: `Commissioned for "${input.demandTitle}"`,
+        relatedId: input.demandId,
+        relatedType: 'demand',
+      });
+    }
+  } catch { /* non-blocking */ }
 
   revalidatePath(`/dashboard/demands/${input.demandId}`);
   revalidatePath('/dashboard/engagements');

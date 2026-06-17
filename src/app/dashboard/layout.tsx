@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Sidebar } from './sidebar';
 import { DevDataGenerator } from '@/components/DevDataGenerator';
-import type { Profile } from '@/types/database';
+import type { Profile, Notification } from '@/types/database';
 
 async function signOut() {
   'use server';
@@ -69,17 +69,24 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profilesClient = process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createAdminClient()
     : supabase;
-  const { data: allProfilesData } = await profilesClient
-    .from('profiles')
-    .select('id, role, full_name, email')
-    .order('role');
+  const [{ data: allProfilesData }, { data: supplierProfiles }, { count: newSubmissionsCount }, { data: notificationsData }] = await Promise.all([
+    profilesClient.from('profiles').select('id, role, full_name, email').order('role'),
+    profilesClient.from('suppliers').select('profile_id, company_name').not('profile_id', 'is', null),
+    supabase.from('candidate_submissions').select('*', { count: 'exact', head: true }).eq('status', 'proposed'),
+    supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
+  ]);
+  const supplierNameMap = Object.fromEntries(
+    ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
+  );
   const allUsers = ((allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[])
     .filter(p => p.email)
     .map(p => ({
       id: p.id,
       email: p.email!,
       role: p.role,
-      displayName: p.full_name || p.email || p.id,
+      displayName: p.role === 'supplier' && supplierNameMap[p.id]
+        ? supplierNameMap[p.id]
+        : (p.full_name || p.email || p.id),
     }));
 
   return (
@@ -89,6 +96,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         initial={initial}
         role={role}
         canSeeDemands={canSeeDemands}
+        newSubmissionsCount={newSubmissionsCount ?? 0}
+        notifications={(notificationsData ?? []) as Notification[]}
+        userId={user.id}
         signOut={signOut}
         switchToUser={switchToUser}
         allUsers={allUsers}

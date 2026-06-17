@@ -31,10 +31,11 @@ interface Props {
   demandTitle: string;
   demandStartDate: string;
   demandEndDate: string;
+  contractType: string;
   role: UserRole;
 }
 
-export async function SubmissionsTable({ demandId, demandSkills, demandTitle, demandStartDate, demandEndDate, role }: Props) {
+export async function SubmissionsTable({ demandId, demandSkills, demandTitle, demandStartDate, demandEndDate, contractType, role }: Props) {
   const supabase = await createClient();
 
   const { data: rawSubs } = await supabase
@@ -46,7 +47,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
   if (!rawSubs?.length) {
     return (
       <SubmissionsTableClient rows={[]} demandSkills={demandSkills} role={role}
-        demandTitle={demandTitle} demandStartDate={demandStartDate} demandEndDate={demandEndDate} />
+        demandTitle={demandTitle} demandStartDate={demandStartDate} demandEndDate={demandEndDate} contractType={contractType} />
     );
   }
 
@@ -137,6 +138,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
       demandTitle={demandTitle}
       demandStartDate={demandStartDate}
       demandEndDate={demandEndDate}
+      contractType={contractType}
     />
   );
 }

@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { emailCandidatesSubmitted, emailApplicationConfirmation } from '@/lib/email';
+import { createNotifications } from '@/lib/actions/notifications';
 
 export interface ApplyResult {
   success?: true;
@@ -16,6 +17,12 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
   const phone       = (formData.get('phone') as string)?.trim() || null;
   const password    = formData.get('password') as string;
   const coverLetter = (formData.get('cover_letter') as string)?.trim() || null;
+  const desiredRateRaw  = formData.get('desired_rate') as string | null;
+  const desiredRate     = desiredRateRaw ? parseFloat(desiredRateRaw) || null : null;
+  const desiredRateType = (formData.get('desired_rate_type') as string) || 'daily';
+  const skillsRaw   = (formData.get('skills') as string)?.trim() || '';
+  const skills      = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const cvFile      = formData.get('cv_file') as File | null;
 
   if (!demandId || !name || !email || !password) {
     return { error: 'Please fill in all required fields.' };
@@ -40,6 +47,20 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
   }
   const userId = created.user.id;
 
+  // Upload CV if provided (using admin client — user isn't authenticated yet)
+  let cvPath: string | null = null;
+  if (cvFile && cvFile.size > 0) {
+    try {
+      const ext = cvFile.name.split('.').pop() ?? 'pdf';
+      const fileName = `${userId}/cv.${ext}`;
+      const arrayBuffer = await cvFile.arrayBuffer();
+      const { error: uploadErr } = await admin.storage
+        .from('cvs')
+        .upload(fileName, arrayBuffer, { contentType: cvFile.type || 'application/pdf', upsert: true });
+      if (!uploadErr) cvPath = `cvs/${fileName}`;
+    } catch { /* non-blocking */ }
+  }
+
   // Profile
   await admin.from('profiles').insert({
     id: userId,
@@ -49,15 +70,18 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
     phone,
   });
 
-  // Candidate profile (minimal)
+  // Candidate profile — include skills and CV
   await admin.from('candidate_profiles').insert({
     id: userId,
-    skills: [],
+    skills,
     languages: [],
     availability_type: 'immediate',
     remote_preference: 'flexible',
     preferred_employment: [],
     currency: 'EUR',
+    cv_path: cvPath,
+    hourly_rate_min: desiredRate && desiredRateType === 'hourly' ? desiredRate : null,
+    hourly_rate_max: desiredRate && desiredRateType === 'hourly' ? desiredRate : null,
   });
 
   // Submission — no supplier, source = direct
@@ -69,6 +93,9 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
     candidate_email: email,
     notes: coverLetter,
     source: 'direct',
+    proposed_rate: desiredRate,
+    rate_type: desiredRate ? desiredRateType : null,
+    cv_path: cvPath,
   });
   if (subErr) return { error: subErr.message };
 
@@ -77,11 +104,22 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
     const { data: demand } = await admin.from('demands').select('title').eq('id', demandId).single();
     const { data: recruiters } = await admin
       .from('profiles')
-      .select('email')
+      .select('id, email')
       .in('role', ['recruiter', 'admin'])
       .not('email', 'is', null);
 
     const recruiterEmails = (recruiters ?? []).map(r => r.email as string).filter(Boolean);
+    const recruiterIds = (recruiters ?? []).map(r => r.id as string).filter(Boolean);
+    if (demand && recruiterIds.length) {
+      await createNotifications({
+        userIds: recruiterIds,
+        type: 'new_submission',
+        title: `New application: ${name}`,
+        body: `Applied to "${demand.title}" via Career Portal`,
+        relatedId: demandId,
+        relatedType: 'demand',
+      });
+    }
     if (demand && recruiterEmails.length) {
       await emailCandidatesSubmitted({
         recruiterEmails,
@@ -92,7 +130,6 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
       });
     }
 
-    // Confirmation to candidate
     if (demand) {
       await emailApplicationConfirmation({
         candidateEmail: email,

@@ -17,6 +17,7 @@ function makeTrackingCode(): string {
 
 function revalidate(demandId: string) {
   revalidatePath(`/dashboard/demands/${demandId}`);
+  revalidatePath('/dashboard/social-media');
 }
 
 export async function generateSocialPosts(demandId: string, platforms: SocialPlatform[]) {

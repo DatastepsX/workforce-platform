@@ -6,6 +6,35 @@ import Link from 'next/link';
 import { updateEngagementStatus } from '@/lib/actions/engagements';
 import type { Engagement, EngagementStatus } from '@/types/database';
 
+function countBusinessDays(start: string, end: string): number {
+  try {
+    const s = new Date(start); const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return 0;
+    let count = 0; const cur = new Date(s);
+    while (cur <= e) { const d = cur.getDay(); if (d !== 0 && d !== 6) count++; cur.setDate(cur.getDate() + 1); }
+    return count;
+  } catch { return 0; }
+}
+
+function calcEngagementTotal(eng: Engagement): { total: number; duration: number; durationLabel: string } | null {
+  const r = eng.rate;
+  if (!r || !eng.start_date || !eng.end_date) return null;
+  const businessDays = countBusinessDays(eng.start_date, eng.end_date);
+  if (businessDays === 0) return null;
+  if (eng.rate_type === 'daily') {
+    return { total: businessDays * r, duration: businessDays, durationLabel: `${businessDays} Tage` };
+  } else if (eng.rate_type === 'hourly') {
+    const hours = businessDays * 8;
+    return { total: hours * r, duration: hours, durationLabel: `${hours} Std.` };
+  } else if (eng.rate_type === 'monthly') {
+    const months = Math.round((businessDays / 21) * 10) / 10;
+    return { total: months * r, duration: months, durationLabel: `${months} Mon.` };
+  } else if (eng.rate_type === 'fixed') {
+    return { total: r, duration: businessDays, durationLabel: `${businessDays} Tage` };
+  }
+  return null;
+}
+
 const STATUS_META: Record<EngagementStatus, { label: string; color: string }> = {
   active:    { label: 'Active',    color: '#34C759' },
   completed: { label: 'Completed', color: '#007AFF' },
@@ -93,6 +122,32 @@ function EngagementRow({
         ) : (
           <span className="text-[12px] text-[#C7C7CC]">—</span>
         )}
+      </td>
+      {/* Duration */}
+      <td className="px-3 py-3.5 align-top whitespace-nowrap">
+        {(() => {
+          const c = calcEngagementTotal(eng);
+          return c ? (
+            <span className="text-[13px] text-[#3C3C43]">{c.durationLabel}</span>
+          ) : <span className="text-[12px] text-[#C7C7CC]">—</span>;
+        })()}
+      </td>
+      {/* Total */}
+      <td className="px-3 py-3.5 align-top whitespace-nowrap">
+        {(() => {
+          const displayTotal = eng.total_amount ?? calcEngagementTotal(eng)?.total ?? null;
+          if (!displayTotal) return <span className="text-[12px] text-[#C7C7CC]">—</span>;
+          return (
+            <div>
+              <span className="text-[14px] font-bold text-black">
+                {eng.currency} {Math.round(displayTotal).toLocaleString('de-DE')}
+              </span>
+              {eng.price_locked && (
+                <span className="ml-1.5 text-[10px] font-semibold text-[#FF9500]">●</span>
+              )}
+            </div>
+          );
+        })()}
       </td>
       <td className="px-3 py-3.5 align-top" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-2">
@@ -190,10 +245,10 @@ export function EngagementsClient({ engagements: initial }: { engagements: Engag
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[700px]">
+        <table className="w-full min-w-[900px]">
           <thead>
             <tr className="border-b border-[#F2F2F7]">
-              {['Candidate', 'Demand', 'Supplier', 'Period', 'Rate', 'Status'].map(h => (
+              {['Candidate', 'Demand', 'Supplier', 'Period', 'Rate', 'Duration', 'Total', 'Status'].map(h => (
                 <th key={h} className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 first:px-5">
                   {h}
                 </th>
@@ -203,7 +258,7 @@ export function EngagementsClient({ engagements: initial }: { engagements: Engag
           <tbody className="divide-y divide-[#F2F2F7]">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-[13px] text-[#8E8E93]">
+                <td colSpan={8} className="px-5 py-8 text-center text-[13px] text-[#8E8E93]">
                   {q || statusFilter !== 'all' ? 'No engagements match your filter.' : 'No engagements yet.'}
                 </td>
               </tr>

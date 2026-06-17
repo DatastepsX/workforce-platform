@@ -38,7 +38,7 @@ export default async function ApplyPage({ params }: { params: Promise<{ id: stri
           {demand.location ? ` · ${demand.location}` : ''}
         </p>
 
-        <ApplyForm demandId={demand.id} demandTitle={demand.title} />
+        <ApplyForm demandId={demand.id} demandTitle={demand.title} contractType={demand.contract_type} />
       </div>
     </div>
   );

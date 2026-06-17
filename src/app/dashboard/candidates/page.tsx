@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import type { CandidateProfile, Profile } from '@/types/database';
+import type { CandidateProfile, Demand, Profile } from '@/types/database';
 import { CandidatesListClient } from './candidates-list-client';
 import type { CandidateRow } from './candidates-list-client';
 
@@ -12,10 +12,12 @@ export default async function CandidatesPage() {
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (!['admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
 
-  const { data: cpData } = await supabase
-    .from('candidate_profiles')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const [{ data: cpData }, { data: demandsData }] = await Promise.all([
+    supabase.from('candidate_profiles').select('*').order('updated_at', { ascending: false }),
+    supabase.from('demands').select('*').eq('status', 'open').order('updated_at', { ascending: false }),
+  ]);
+
+  const openDemands = (demandsData ?? []) as Demand[];
 
   if (!cpData?.length) {
     return (
@@ -48,7 +50,7 @@ export default async function CandidatesPage() {
       <div className="mb-6">
         <h1 className="text-[34px] font-bold tracking-tight text-black leading-tight">Candidates</h1>
       </div>
-      <CandidatesListClient candidates={candidates} />
+      <CandidatesListClient candidates={candidates} openDemands={openDemands} />
     </div>
   );
 }

@@ -9,11 +9,24 @@ import type { Supplier } from '@/types/database';
 export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]; role: string }) {
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
+
+  const allSpecs = useMemo(() => {
+    const seen: string[] = [];
+    suppliers.forEach(s => s.specializations.forEach(spec => {
+      if (!seen.includes(spec)) seen.push(spec);
+    }));
+    return seen.sort();
+  }, [suppliers]);
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
     return suppliers.filter(s => {
       if (statusFilter !== 'all' && s.status !== statusFilter) return false;
+      if (selectedSpecs.length > 0) {
+        const hasAny = selectedSpecs.some(spec => s.specializations.includes(spec));
+        if (!hasAny) return false;
+      }
       if (!term) return true;
       const name = s.company_name.toLowerCase();
       const contact = (s.contact_name || '').toLowerCase();
@@ -21,12 +34,18 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
       const specs = s.specializations.join(' ').toLowerCase();
       return name.includes(term) || contact.includes(term) || email.includes(term) || specs.includes(term);
     });
-  }, [suppliers, q, statusFilter]);
+  }, [suppliers, q, statusFilter, selectedSpecs]);
+
+  function toggleSpec(spec: string) {
+    setSelectedSpecs(prev =>
+      prev.includes(spec) ? prev.filter(s => s !== spec) : [...prev, spec]
+    );
+  }
 
   return (
     <div>
       {/* Filter bar */}
-      <div className="flex flex-col sm:flex-row gap-2 mb-6">
+      <div className="flex flex-col sm:flex-row gap-2 mb-3">
         <div className="relative flex-1 max-w-sm">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E93] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
@@ -56,8 +75,36 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
         </div>
       </div>
 
+      {/* Specialization chips */}
+      {allSpecs.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {allSpecs.map(spec => (
+            <button
+              key={spec}
+              onClick={() => toggleSpec(spec)}
+              className={`text-[12px] font-medium px-3 py-1 rounded-full transition-colors border ${
+                selectedSpecs.includes(spec)
+                  ? 'bg-[#007AFF] text-white border-[#007AFF]'
+                  : 'bg-white text-[#3C3C43] border-[#E5E5EA] hover:border-[#007AFF] hover:text-[#007AFF]'
+              }`}
+            >
+              {spec}
+            </button>
+          ))}
+          {selectedSpecs.length > 0 && (
+            <button
+              onClick={() => setSelectedSpecs([])}
+              className="text-[12px] text-[#FF3B30] hover:opacity-70 transition-opacity ml-1"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       <p className="text-[13px] text-[#8E8E93] mb-4">
         {filtered.length} of {suppliers.length} supplier{suppliers.length !== 1 ? 's' : ''}
+        {selectedSpecs.length > 0 && ` · filtered by ${selectedSpecs.length} specialization${selectedSpecs.length !== 1 ? 's' : ''}`}
       </p>
 
       {filtered.length === 0 ? (
@@ -92,7 +139,17 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
                   {s.specializations.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {s.specializations.map(spec => (
-                        <span key={spec} className="text-[11px] bg-[#F2F2F7] text-[#3C3C43] px-2 py-0.5 rounded-full">{spec}</span>
+                        <button
+                          key={spec}
+                          onClick={() => toggleSpec(spec)}
+                          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                            selectedSpecs.includes(spec)
+                              ? 'bg-[#007AFF] text-white'
+                              : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#007AFF]/10 hover:text-[#007AFF]'
+                          }`}
+                        >
+                          {spec}
+                        </button>
                       ))}
                     </div>
                   )}

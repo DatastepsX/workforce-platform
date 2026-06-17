@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useCallback } from 'react';
 import { updateSubmissionStatus } from '@/lib/actions/submissions';
 import { createEngagement } from '@/lib/actions/engagements';
 import type { SubmissionStatus, UserRole } from '@/types/database';
@@ -74,33 +74,102 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function countBusinessDays(start: string, end: string): number {
+  try {
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return 0;
+    let count = 0;
+    const cur = new Date(s);
+    while (cur <= e) {
+      const d = cur.getDay();
+      if (d !== 0 && d !== 6) count++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+  } catch { return 0; }
+}
+
+const CONTRACT_RATE_DEFAULTS: Record<string, string> = {
+  permanent: 'monthly', freelance: 'daily', contractor: 'daily', internship: 'monthly',
+};
+
 function CommissionPanel({
   row,
   demandTitle,
   demandStartDate,
   demandEndDate,
+  contractType,
   onCommissioned,
 }: {
   row: SubmissionRow;
   demandTitle: string;
   demandStartDate: string;
   demandEndDate: string;
+  contractType: string;
   onCommissioned: () => void;
 }) {
+  const defaultRateType = row.rateType ?? CONTRACT_RATE_DEFAULTS[contractType] ?? 'daily';
   const [isPending, startTransition] = useTransition();
   const [startDate, setStartDate]   = useState(demandStartDate);
   const [endDate, setEndDate]       = useState(demandEndDate);
   const [rate, setRate]             = useState(String(row.proposedRate ?? ''));
-  const [rateType, setRateType]     = useState(row.rateType ?? 'daily');
+  const [rateType, setRateType]     = useState(defaultRateType);
   const [currency, setCurrency]     = useState('EUR');
   const [notes, setNotes]           = useState('');
   const [error, setError]           = useState<string | null>(null);
+  const [totalOverride, setTotalOverride] = useState<string>('');
+  const [priceLocked, setPriceLocked] = useState(false);
 
   const inp = 'w-full bg-[#F2F2F7] rounded-lg px-3 py-2 text-[13px] text-black placeholder:text-[#8E8E93] outline-none border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white transition-colors';
 
-  function submit() {
+  const calc = useMemo(() => {
+    const r = parseFloat(rate) || 0;
+    if (!r || !startDate || !endDate) return null;
+    try {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return null;
+      const calendarDays = Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
+      const businessDays = countBusinessDays(startDate, endDate);
+      const weekendDays = calendarDays - businessDays;
+      let total = 0;
+      let formula = '';
+      if (rateType === 'daily') {
+        total = businessDays * r;
+        formula = `${businessDays} Arbeitstage × ${r.toLocaleString('de-DE')} ${currency}`;
+      } else if (rateType === 'hourly') {
+        total = businessDays * 8 * r;
+        formula = `${businessDays} Tage × 8 Std. × ${r.toLocaleString('de-DE')} ${currency}`;
+      } else if (rateType === 'monthly') {
+        const months = businessDays / 21;
+        total = months * r;
+        formula = `${months.toFixed(1)} Monate × ${r.toLocaleString('de-DE')} ${currency}`;
+      } else {
+        total = r;
+        formula = `Pauschal ${r.toLocaleString('de-DE')} ${currency}`;
+      }
+      // Auto-fill total override only if user hasn't manually locked it
+      if (!priceLocked) {
+        setTimeout(() => setTotalOverride(String(Math.round(total))), 0);
+      }
+      return { calendarDays, businessDays, weekendDays, total, formula };
+    } catch { return null; }
+  }, [startDate, endDate, rate, rateType, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // For permanent: also show annual context
+  const isPermanent = contractType === 'permanent';
+  const annualSalary = isPermanent && rateType === 'monthly' && parseFloat(rate)
+    ? parseFloat(rate) * 12
+    : null;
+
+  const submit = useCallback(() => {
     setError(null);
     startTransition(async () => {
+      const overrideVal = parseFloat(totalOverride) || null;
+      const calcVal = calc?.total ? Math.round(calc.total) : null;
+      const finalTotal = overrideVal ?? calcVal;
+      const isLocked = priceLocked || (overrideVal !== null && overrideVal !== calcVal);
       const result = await createEngagement({
         submissionId:   row.id,
         demandId:       row.demandId,
@@ -111,49 +180,132 @@ function CommissionPanel({
         supplierName:   row.supplierName,
         supplierEmail:  row.supplierEmail,
         startDate, endDate, rate, rateType, currency, notes,
+        totalAmount:    finalTotal,
+        priceLocked:    isLocked,
       });
       if (result.error) { setError(result.error); return; }
       onCommissioned();
     });
-  }
+  }, [row, demandTitle, startDate, endDate, rate, rateType, currency, notes, totalOverride, priceLocked, calc, onCommissioned, startTransition]);
+
+  const RATE_TYPE_LABELS: Record<string, string> = {
+    daily: 'pro Tag', hourly: 'pro Stunde', monthly: 'pro Monat', fixed: 'Pauschal',
+  };
 
   return (
     <div className="mt-3 pt-3 border-t border-[#E5E5EA] space-y-3">
-      <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Commission Details</p>
+      <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Beauftragung</p>
+
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Start Date</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Startdatum</label>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inp} />
         </div>
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">End Date</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Enddatum</label>
           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inp} />
         </div>
       </div>
+
       <div className="grid grid-cols-3 gap-2">
         <div>
           <label className="text-[11px] text-[#8E8E93] mb-1 block">Rate</label>
           <input type="number" min="0" value={rate} onChange={e => setRate(e.target.value)} placeholder="0" className={inp} />
         </div>
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Per</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Einheit</label>
           <select value={rateType} onChange={e => setRateType(e.target.value)} className={inp}>
-            <option value="daily">Day</option>
-            <option value="hourly">Hour</option>
-            <option value="monthly">Month</option>
+            <option value="daily">pro Tag</option>
+            <option value="hourly">pro Stunde</option>
+            <option value="monthly">pro Monat</option>
+            <option value="fixed">Pauschal</option>
           </select>
         </div>
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Currency</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Währung</label>
           <select value={currency} onChange={e => setCurrency(e.target.value)} className={inp}>
             <option>EUR</option><option>CHF</option><option>GBP</option><option>USD</option>
           </select>
         </div>
       </div>
+
+      {/* Live cost calculator */}
+      {calc && (
+        <div className="bg-gradient-to-br from-[#007AFF]/8 to-[#007AFF]/4 rounded-xl p-3.5 border border-[#007AFF]/15 space-y-3">
+          <p className="text-[10px] font-semibold text-[#007AFF] uppercase tracking-[0.5px]">Kostenkalkulation</p>
+
+          {/* Days breakdown — only for time-based rates */}
+          {rateType !== 'fixed' && (
+            <div className="flex items-center gap-3">
+              <div className="text-center flex-1">
+                <p className="text-[18px] font-bold text-black leading-none">{calc.calendarDays}</p>
+                <p className="text-[10px] text-[#8E8E93] mt-0.5">Kal.&nbsp;Tage</p>
+              </div>
+              <p className="text-[14px] text-[#C7C7CC]">−</p>
+              <div className="text-center flex-1">
+                <p className="text-[18px] font-bold text-[#8E8E93] leading-none">{calc.weekendDays}</p>
+                <p className="text-[10px] text-[#8E8E93] mt-0.5">WE-Tage</p>
+              </div>
+              <p className="text-[14px] text-[#C7C7CC]">=</p>
+              <div className="text-center flex-1">
+                <p className="text-[18px] font-bold text-[#007AFF] leading-none">{calc.businessDays}</p>
+                <p className="text-[10px] text-[#007AFF] mt-0.5">Arbeitstage</p>
+              </div>
+            </div>
+          )}
+
+          {/* Formula */}
+          <div className="bg-white/60 rounded-lg px-3 py-2">
+            <p className="text-[11px] text-[#8E8E93]">
+              {calc.formula} <span className="text-[#007AFF]">{RATE_TYPE_LABELS[rateType] ?? ''}</span>
+            </p>
+          </div>
+
+          {/* Total — editable override */}
+          <div className="bg-white/80 rounded-xl p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-[#3C3C43]">Gesamtvolumen</p>
+              {priceLocked && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500]">Preis festgelegt</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-[#8E8E93]">{currency}</span>
+              <input
+                type="number"
+                min="0"
+                value={totalOverride}
+                onChange={e => {
+                  setTotalOverride(e.target.value);
+                  const v = parseFloat(e.target.value);
+                  setPriceLocked(!isNaN(v) && v !== Math.round(calc.total));
+                }}
+                className="flex-1 bg-[#F2F2F7] rounded-lg px-3 py-1.5 text-[18px] font-bold text-black outline-none border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white transition-colors"
+              />
+            </div>
+            {priceLocked && calc && (
+              <p className="text-[10px] text-[#8E8E93]">
+                Kalkulation: {currency} {Math.round(calc.total).toLocaleString('de-DE')} · Differenz: {currency} {(parseFloat(totalOverride) - calc.total).toLocaleString('de-DE', { maximumFractionDigits: 0 })}
+              </p>
+            )}
+          </div>
+
+          {/* Permanent: annual context */}
+          {isPermanent && annualSalary && (
+            <div className="pt-2 border-t border-[#007AFF]/15">
+              <p className="text-[11px] text-[#8E8E93]">
+                Jahresgehalt: <span className="font-semibold text-[#3C3C43]">{currency} {annualSalary.toLocaleString('de-DE')}</span>
+                <span className="ml-2">· Typische Vermittlungsgebühr 15–20%: <span className="font-semibold text-[#3C3C43]">{currency} {(annualSalary * 0.175).toLocaleString('de-DE', { maximumFractionDigits: 0 })}</span></span>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div>
-        <label className="text-[11px] text-[#8E8E93] mb-1 block">Notes (optional)</label>
+        <label className="text-[11px] text-[#8E8E93] mb-1 block">Notizen (optional)</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-          className={inp + ' resize-none'} placeholder="Internal notes…" />
+          className={inp + ' resize-none'} placeholder="Interne Notizen…" />
       </div>
       {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
       <button
@@ -162,7 +314,7 @@ function CommissionPanel({
         className="w-full py-2.5 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
         style={{ backgroundColor: '#34C759', boxShadow: '0 2px 8px rgba(52,199,89,0.3)' }}
       >
-        {isPending ? 'Commissioning…' : '✓ Confirm Commission'}
+        {isPending ? 'Wird beauftragt…' : '✓ Beauftragung bestätigen'}
       </button>
     </div>
   );
@@ -173,6 +325,7 @@ function CandidateDrawer({
   demandTitle,
   demandStartDate,
   demandEndDate,
+  contractType,
   canAct,
   onClose,
   onStatusChange,
@@ -181,6 +334,7 @@ function CandidateDrawer({
   demandTitle: string;
   demandStartDate: string;
   demandEndDate: string;
+  contractType: string;
   canAct: boolean;
   onClose: () => void;
   onStatusChange: (id: string, status: SubmissionStatus) => void;
@@ -365,9 +519,9 @@ function CandidateDrawer({
           )}
         </div>
 
-        {/* Footer — status actions */}
+        {/* Footer — status actions (scrollable so commission panel button stays visible) */}
         {canAct && (
-          <div className="px-6 py-4 border-t border-[#F2F2F7] bg-[#F9F9FB]">
+          <div className="overflow-y-auto max-h-[60vh] px-6 py-4 border-t border-[#F2F2F7] bg-[#F9F9FB]">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Move to Stage</p>
               {row.status !== 'hired' && (
@@ -409,6 +563,7 @@ function CandidateDrawer({
                 demandTitle={demandTitle}
                 demandStartDate={demandStartDate}
                 demandEndDate={demandEndDate}
+                contractType={contractType}
                 onCommissioned={() => {
                   onStatusChange(row.id, 'hired');
                   setShowCommission(false);
@@ -460,6 +615,7 @@ export function SubmissionsTableClient({
   demandTitle,
   demandStartDate,
   demandEndDate,
+  contractType,
 }: {
   rows: SubmissionRow[];
   demandSkills: string[];
@@ -467,6 +623,7 @@ export function SubmissionsTableClient({
   demandTitle: string;
   demandStartDate: string;
   demandEndDate: string;
+  contractType: string;
 }) {
   const [rows, setRows] = useState(initialRows);
   const [selected, setSelected] = useState<SubmissionRow | null>(null);
@@ -670,6 +827,7 @@ export function SubmissionsTableClient({
           demandTitle={demandTitle}
           demandStartDate={demandStartDate}
           demandEndDate={demandEndDate}
+          contractType={contractType}
           canAct={canAct}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}

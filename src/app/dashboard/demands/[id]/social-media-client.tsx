@@ -59,11 +59,11 @@ const PLATFORMS: { id: SocialPlatform; label: string; icon: JSX.Element; color: 
   },
 ];
 
-const PLATFORM_MAP = Object.fromEntries(PLATFORMS.map(p => [p.id, p]));
+export const PLATFORM_MAP = Object.fromEntries(PLATFORMS.map(p => [p.id, p]));
 
 /* ─── Status meta ────────────────────────────────────────── */
 
-const STATUS_META: Record<SocialPostStatus, { label: string; color: string; bg: string }> = {
+export const STATUS_META: Record<SocialPostStatus, { label: string; color: string; bg: string }> = {
   draft:    { label: 'Entwurf',    color: '#8E8E93', bg: '#8E8E9318' },
   approved: { label: 'Freigegeben', color: '#007AFF', bg: '#007AFF18' },
   posted:   { label: 'Gepostet',   color: '#34C759', bg: '#34C75918' },
@@ -73,16 +73,25 @@ const STATUS_META: Record<SocialPostStatus, { label: string; color: string; bg: 
 
 /* ─── Canvas image generator ─────────────────────────────── */
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number {
+const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif';
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number, maxLines = 99): number {
   const words = text.split(' ');
   let line = '';
   let currentY = y;
+  let linesDrawn = 0;
   for (const word of words) {
     const test = line ? `${line} ${word}` : word;
     if (ctx.measureText(test).width > maxWidth && line) {
-      ctx.fillText(line, x, currentY);
+      if (linesDrawn < maxLines - 1) {
+        ctx.fillText(line, x, currentY);
+      } else {
+        ctx.fillText(line.length > 30 ? line.slice(0, 28) + '…' : line, x, currentY);
+        return currentY + lineHeight;
+      }
       line = word;
       currentY += lineHeight;
+      linesDrawn++;
     } else {
       line = test;
     }
@@ -91,145 +100,235 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   return currentY + lineHeight;
 }
 
-async function generateImage(post: SocialPost, demand: Demand): Promise<string> {
+export async function generateImage(post: SocialPost, demand: Demand): Promise<string> {
   const QRCode = (await import('qrcode')).default;
   const canvas = document.createElement('canvas');
   canvas.width = 1080;
   canvas.height = 1080;
   const ctx = canvas.getContext('2d')!;
 
-  // Background
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, 1080, 1080);
-
-  // Header band
-  ctx.fillStyle = '#007AFF';
-  ctx.fillRect(0, 0, 1080, 90);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-  ctx.fillText('WorkforceX', 50, 57);
-
-  // Platform badge in header (top right)
-  const platform = PLATFORM_MAP[post.platform];
-  if (platform) {
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    const badgeW = 140;
-    ctx.roundRect(1080 - badgeW - 20, 18, badgeW, 52, 10);
-    ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(platform.label, 1080 - 20 - badgeW / 2, 50);
-    ctx.textAlign = 'left';
-  }
-
-  // Job title
-  ctx.fillStyle = '#1C1C1E';
-  ctx.font = 'bold 54px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-  let nextY = wrapText(ctx, demand.title, 50, 175, 960, 66);
-
-  // Location + contract pills
-  nextY += 16;
-  const tags: { text: string; color: string }[] = [];
-  if (demand.location) tags.push({ text: demand.location, color: '#34C759' });
-  if (demand.remote_allowed) tags.push({ text: 'Remote', color: '#007AFF' });
-  tags.push({ text: demand.contract_type.charAt(0).toUpperCase() + demand.contract_type.slice(1), color: '#8E8E93' });
-
-  ctx.font = '20px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-  let tagX = 50;
-  for (const tag of tags) {
-    const w = ctx.measureText(tag.text).width + 24;
-    ctx.fillStyle = tag.color + '22';
-    ctx.beginPath();
-    ctx.roundRect(tagX, nextY - 22, w, 34, 8);
-    ctx.fill();
-    ctx.fillStyle = tag.color;
-    ctx.fillText(tag.text, tagX + 12, nextY);
-    tagX += w + 10;
-  }
-  nextY += 28;
-
-  // Separator
-  nextY += 12;
-  ctx.fillStyle = '#E5E5EA';
-  ctx.fillRect(50, nextY, 980, 2);
-  nextY += 20;
-
-  // Budget + start date
-  const facts: string[] = [];
-  if (demand.budget_max) facts.push(`💰 bis zu €${demand.budget_max.toLocaleString('de-DE')}`);
-  else if (demand.budget_min) facts.push(`💰 ab €${demand.budget_min.toLocaleString('de-DE')}`);
-  if (demand.start_date) {
-    facts.push(`📅 Start: ${new Date(demand.start_date).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}`);
-  }
-  if (facts.length) {
-    ctx.fillStyle = '#3C3C43';
-    ctx.font = '22px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-    ctx.fillText(facts.join('   ·   '), 50, nextY + 22);
-    nextY += 50;
-  }
-
-  // Skills chips
-  if (demand.skills.length > 0) {
-    nextY += 10;
-    ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-    let sx = 50;
-    let sy = nextY;
-    for (const skill of demand.skills.slice(0, 7)) {
-      const w = ctx.measureText(skill).width + 24;
-      if (sx + w > 980) { sx = 50; sy += 40; }
-      ctx.fillStyle = '#007AFF18';
-      ctx.beginPath();
-      ctx.roundRect(sx, sy - 20, w, 32, 8);
-      ctx.fill();
-      ctx.fillStyle = '#007AFF';
-      ctx.fillText(skill, sx + 12, sy);
-      sx += w + 10;
-    }
-    nextY = sy + 40;
-  }
-
-  // Description snippet
-  if (demand.description) {
-    nextY += 10;
-    ctx.fillStyle = '#636366';
-    ctx.font = '21px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-    const snippet = demand.description.length > 180 ? demand.description.slice(0, 177) + '…' : demand.description;
-    wrapText(ctx, snippet, 50, nextY, 680, 30);
-    nextY += 80;
-  }
-
-  // Footer area
-  ctx.fillStyle = '#F5F5F7';
-  ctx.fillRect(0, 840, 1080, 200);
-
-  // CTA text
-  ctx.fillStyle = '#1C1C1E';
-  ctx.font = 'bold 30px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-  ctx.fillText('Jetzt bewerben!', 50, 895);
-  ctx.fillStyle = '#8E8E93';
-  ctx.font = '18px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-  const trackingUrl = post.tracking_url ?? '';
-  const displayUrl = trackingUrl.length > 55 ? trackingUrl.slice(0, 52) + '…' : trackingUrl;
-  ctx.fillText(displayUrl, 50, 930);
-
-  // QR code
-  if (trackingUrl) {
+  // ── Background: Unsplash photo (if key set) or dark gradient ─
+  let photoBg: HTMLImageElement | null = null;
+  const unsplashKey = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
+  if (unsplashKey) {
     try {
-      const qrDataUrl = await QRCode.toDataURL(trackingUrl, { margin: 1, width: 210, color: { dark: '#1C1C1E', light: '#F5F5F7' } });
-      const qrImg = new Image();
-      await new Promise<void>(resolve => { qrImg.onload = () => resolve(); qrImg.src = qrDataUrl; });
-      ctx.drawImage(qrImg, 855, 845, 200, 200);
-    } catch { /* skip QR if error */ }
+      const keywords = [demand.title, demand.skills[0]].filter(Boolean).join(' ');
+      const query = encodeURIComponent(`${keywords} professional`);
+      const res = await fetch(
+        `https://api.unsplash.com/search/photos?query=${query}&client_id=${unsplashKey}&per_page=3&orientation=squarish`,
+      );
+      const json = await res.json();
+      const photoUrl: string | undefined = json.results?.[0]?.urls?.regular;
+      if (photoUrl) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = reject;
+          img.src = photoUrl;
+        });
+        photoBg = img;
+      }
+    } catch { /* fall through to gradient */ }
   }
 
-  // Bottom bar
+  if (photoBg) {
+    // Cover-fit photo to 1080×1080
+    const ratio = Math.max(1080 / photoBg.naturalWidth, 1080 / photoBg.naturalHeight);
+    const w = photoBg.naturalWidth * ratio;
+    const h = photoBg.naturalHeight * ratio;
+    ctx.drawImage(photoBg, (1080 - w) / 2, (1080 - h) / 2, w, h);
+    // Dark scrim so white text stays readable
+    const scrim = ctx.createLinearGradient(0, 0, 0, 1080);
+    scrim.addColorStop(0,   'rgba(0,0,0,0.75)');
+    scrim.addColorStop(0.45,'rgba(0,0,0,0.50)');
+    scrim.addColorStop(1,   'rgba(0,0,0,0.82)');
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, 1080, 1080);
+    // Subtle blue tint at bottom
+    const tint = ctx.createLinearGradient(0, 700, 0, 1080);
+    tint.addColorStop(0, 'rgba(0,80,200,0)');
+    tint.addColorStop(1, 'rgba(0,80,200,0.30)');
+    ctx.fillStyle = tint;
+    ctx.fillRect(0, 0, 1080, 1080);
+  } else {
+    // Dark gradient fallback
+    const bgGrad = ctx.createLinearGradient(0, 0, 1080, 1080);
+    bgGrad.addColorStop(0, '#0D1B2A');
+    bgGrad.addColorStop(1, '#0A1628');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1080, 1080);
+    // Dot-grid texture
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    for (let x = 36; x < 1080; x += 42) {
+      for (let y = 36; y < 1080; y += 42) {
+        ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // Blue glows
+    const glow1 = ctx.createRadialGradient(0, 1080, 0, 0, 1080, 700);
+    glow1.addColorStop(0, 'rgba(0,122,255,0.22)'); glow1.addColorStop(1, 'rgba(0,122,255,0)');
+    ctx.fillStyle = glow1; ctx.fillRect(0, 0, 1080, 1080);
+    const glow2 = ctx.createRadialGradient(1080, 0, 0, 1080, 0, 500);
+    glow2.addColorStop(0, 'rgba(0,122,255,0.12)'); glow2.addColorStop(1, 'rgba(0,122,255,0)');
+    ctx.fillStyle = glow2; ctx.fillRect(0, 0, 1080, 1080);
+  }
+
+  // ── Top accent stripe ─────────────────────────────────────
   ctx.fillStyle = '#007AFF';
-  ctx.fillRect(0, 1040, 1080, 40);
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.font = '15px -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
+  ctx.fillRect(0, 0, 1080, 6);
+
+  // ── Logo (top-left) ───────────────────────────────────────
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `bold 24px ${FONT}`;
+  ctx.fillText('WorkforceX', 54, 66);
+  // Blue dot after logo
+  ctx.fillStyle = '#007AFF';
+  ctx.beginPath(); ctx.arc(54 + ctx.measureText('WorkforceX').width + 12, 58, 4, 0, Math.PI * 2); ctx.fill();
+
+  // ── Platform badge (top-right) ────────────────────────────
+  const pl = PLATFORM_MAP[post.platform];
+  if (pl) {
+    const label = pl.label.toUpperCase();
+    ctx.font = `bold 16px ${FONT}`;
+    const tw = ctx.measureText(label).width;
+    const bw = tw + 32; const bx = 1080 - bw - 44; const by = 34;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, 36, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(bx, by, bw, 36, 8); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillText(label, bx + 16, by + 24);
+  }
+
+  // ── Main title ────────────────────────────────────────────
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `bold 80px ${FONT}`;
+  const titleEndY = wrapText(ctx, demand.title, 54, 195, 730, 96, 3);
+
+  // Blue accent line under title
+  ctx.fillStyle = '#007AFF';
+  ctx.fillRect(54, titleEndY - 10, 72, 5);
+
+  // ── Details row ───────────────────────────────────────────
+  let detailY = titleEndY + 40;
+  const details: string[] = [];
+  if (demand.location) details.push(`📍 ${demand.location}${demand.remote_allowed ? ' · Remote' : ''}`);
+  else if (demand.remote_allowed) details.push('📍 Remote');
+  const contractLabels: Record<string, string> = { permanent: 'Festanstellung', freelance: 'Freelance', contractor: 'Contractor', internship: 'Praktikum' };
+  details.push(`💼 ${contractLabels[demand.contract_type] ?? demand.contract_type}`);
+  if (demand.budget_max) details.push(`💰 bis €${demand.budget_max.toLocaleString('de-DE')}`);
+  if (demand.start_date) details.push(`📅 ${new Date(demand.start_date).toLocaleDateString('de-DE', { month: 'short', year: 'numeric' })}`);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = `22px ${FONT}`;
+  let dx = 54;
+  for (const d of details) {
+    const w = ctx.measureText(d).width;
+    if (dx + w > 750 && dx > 54) { dx = 54; detailY += 36; }
+    ctx.fillText(d, dx, detailY);
+    dx += w + 28;
+    // separator dot
+    if (details.indexOf(d) < details.length - 1 && dx + 8 < 750) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(dx - 14, detailY - 7, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    }
+  }
+  detailY += 52;
+
+  // ── Skills ────────────────────────────────────────────────
+  if (demand.skills.length > 0) {
+    ctx.fillStyle = 'rgba(0,122,255,0.7)';
+    ctx.font = `bold 13px ${FONT}`;
+    ctx.fillText('SKILLS', 54, detailY);
+    detailY += 22;
+
+    ctx.font = `bold 19px ${FONT}`;
+    let sx = 54;
+    for (const skill of demand.skills.slice(0, 6)) {
+      const sw = ctx.measureText(skill).width + 28;
+      if (sx + sw > 750) { sx = 54; detailY += 44; }
+      // chip background
+      ctx.fillStyle = 'rgba(0,122,255,0.18)';
+      ctx.beginPath(); ctx.roundRect(sx, detailY - 24, sw, 36, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,122,255,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(sx, detailY - 24, sw, 36, 10); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillText(skill, sx + 14, detailY);
+      sx += sw + 10;
+    }
+    detailY += 54;
+  }
+
+  // ── QR code (right panel) ─────────────────────────────────
+  const trackingUrl = post.tracking_url ?? `https://workforce-platform-omega.vercel.app/careers/${demand.id}`;
+  const qrSize = 220;
+  const qrX = 800; const qrY = 180;
+
+  // QR background card
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.beginPath(); ctx.roundRect(qrX - 20, qrY - 50, qrSize + 40, qrSize + 120, 20); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(qrX - 20, qrY - 50, qrSize + 40, qrSize + 120, 20); ctx.stroke();
+
+  // "SCAN TO APPLY" label
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = `bold 14px ${FONT}`;
   ctx.textAlign = 'center';
-  ctx.fillText(`workforce-platform-omega.vercel.app  ·  ref: ${post.tracking_code}`, 540, 1066);
+  ctx.fillText('SCAN TO APPLY', qrX + qrSize / 2, qrY - 18);
+  ctx.textAlign = 'left';
+
+  try {
+    const qrDataUrl = await QRCode.toDataURL(trackingUrl, {
+      margin: 2, width: qrSize,
+      color: { dark: '#0D1B2A', light: '#FFFFFF' },
+    });
+    const qrImg = new Image();
+    await new Promise<void>(r => { qrImg.onload = () => r(); qrImg.src = qrDataUrl; });
+    // White rounded bg
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.roundRect(qrX, qrY, qrSize, qrSize, 12); ctx.fill();
+    ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+  } catch { /* skip QR on error */ }
+
+  // Tracking code below QR
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = `14px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`ref: ${post.tracking_code}`, qrX + qrSize / 2, qrY + qrSize + 28);
+  ctx.textAlign = 'left';
+
+  // ── CTA Button ────────────────────────────────────────────
+  const ctaY = Math.max(detailY + 30, 820);
+  const ctaW = 340; const ctaH = 60;
+  const ctaGrad = ctx.createLinearGradient(54, ctaY, 54 + ctaW, ctaY);
+  ctaGrad.addColorStop(0, '#007AFF'); ctaGrad.addColorStop(1, '#0055D4');
+  ctx.fillStyle = ctaGrad;
+  ctx.beginPath(); ctx.roundRect(54, ctaY, ctaW, ctaH, 14); ctx.fill();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `bold 22px ${FONT}`;
+  ctx.fillText('Jetzt bewerben →', 80, ctaY + 39);
+
+  // URL below CTA
+  const displayUrl = trackingUrl.length > 60 ? trackingUrl.slice(0, 57) + '…' : trackingUrl;
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = `16px ${FONT}`;
+  ctx.fillText(displayUrl, 54, ctaY + ctaH + 32);
+
+  // ── Bottom bar ────────────────────────────────────────────
+  const bottomGrad = ctx.createLinearGradient(0, 1040, 1080, 1080);
+  bottomGrad.addColorStop(0, '#007AFF');
+  bottomGrad.addColorStop(1, '#0044CC');
+  ctx.fillStyle = bottomGrad;
+  ctx.fillRect(0, 1040, 1080, 40);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = `14px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('workforce-platform-omega.vercel.app', 540, 1066);
   ctx.textAlign = 'left';
 
   return canvas.toDataURL('image/png');

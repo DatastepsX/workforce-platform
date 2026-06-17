@@ -35,7 +35,18 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Email Notifications**: 5 functions (demand sent, candidates submitted, status changed, application confirmation, engagement created)
 - **AI Test Data**: `DevDataGenerator` (✨ button) fills forms with Claude-generated realistic DACH enterprise data, context-aware via page H1/H2
 - **Dev User Switcher**: switch between test users from sidebar (all roles → all roles)
-- **Social Media Module**: generate posts (Instagram, Facebook, LinkedIn, TikTok) for demands with `career_portal` channel; status workflow draft→approved→posted/rejected→archived; canvas image generation with QR code client-side; migration `20260617000016_social_media.sql` must be run in Supabase SQL editor
+- **Social Media Module**: generate posts (Instagram, Facebook, LinkedIn, TikTok) for demands with `career_portal` channel; status workflow draft→approved→posted/rejected→archived; dark modern canvas image (1080×1080) with QR code, skills chips, details; `NEXT_PUBLIC_APP_URL` env var controls tracking URL domain; migration `20260617000016_social_media.sql` applied
+- **Social Media Overview**: `/dashboard/social-media` — all posts from all demands, filterable by platform/status, full management modal; sidebar link for admin/recruiter
+- **Supplier Sidebar**: supplier portal uses same left sidebar layout as dashboard (with mobile hamburger, DevUserSwitcher at bottom) — `src/app/supplier/supplier-sidebar.tsx`
+- **Career Portal Inactive Demand**: graceful "position no longer active" page when arriving at closed/cancelled/draft demand via QR/link; shows reason, CTA to browse open positions
+- **Skills Filter**: candidate list has clickable skill chips (OR logic); supplier list has specialization chips (OR logic) — chips on list rows also act as filters
+- **Candidate Match Pool**: second tab "Match Pool" on `/dashboard/candidates` — all candidate×demand pairs computed client-side using `computeMatch()`, sorted by score; min-score filter (All/80+/60+/40+) + demand selector
+- **Apply Form AI CV**: "Fill with AI" button also auto-generates and pre-populates a PDF CV using `@react-pdf/renderer`; blue dot + file name shown; manual upload clears generated CV
+- **Sort by updated_at**: demands and engagements lists now ordered by `updated_at` descending; demand list shows both "Updated X" and "Created X" dates; migration `20260617000018_engagement_updated_at.sql`
+- **Submissions Inbox**: `/dashboard/submissions` — all candidate submissions across all demands, sorted by submitted_at; filter by status + source; "New" badge on proposed submissions; sidebar link for admin/recruiter/hiring_manager with live count of 'proposed' submissions
+- **Notifications**: `notifications` table with Supabase Realtime; bell icon in sidebar user area (unread count badge); dropdown with mark-as-read; triggered on: new career portal application (→ recruiters), engagement created (→ supplier + recruiters); migration `20260617000019_notifications.sql`; server actions in `src/lib/actions/notifications.ts`
+- **Engagement Total**: `total_amount` (final agreed price) + `price_locked` (manually set) on engagements; commission panel shows live calc with editable total override (orange "Preis festgelegt" badge when overridden); engagements list shows Duration + Total columns; detail page shows "Preis festgelegt" badge + diff vs calculation; migration `20260617000017_engagement_total.sql`
+- **Career Portal Rate**: apply form collects desired rate/salary with contract-type-aware wording (Wunschgehalt for permanent, Wunschsatz for freelance/contractor); saved as `proposed_rate` + `rate_type` on submission
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
@@ -71,8 +82,11 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 ### `social_posts`
 `id`, `demand_id` (FK demands), `platform` (enum: instagram/facebook/linkedin/tiktok/x), `status` (enum: draft/approved/posted/archived/rejected), `caption`, `hashtags` (text[]), `image_path`, `tracking_code` (unique 8-char code), `tracking_url`, `created_by`, `approved_by`, `approved_at`, `posted_at`, `external_post_url`, `created_at`, `updated_at`
 
+### `notifications`
+`id`, `user_id` (FK auth.users), `type` (enum: new_submission/submission_status/engagement_created/demand_received), `title`, `body`, `related_id` (UUID), `related_type` (demand/submission/engagement), `read_at` (null = unread), `created_at`
+
 ### `engagements`
-`id`, `demand_id` (FK demands), `submission_id` (FK candidate_submissions), `supplier_id` (FK suppliers), `demand_title`, `candidate_name`, `candidate_email`, `supplier_name`, `start_date`, `end_date`, `rate`, `rate_type`, `currency`, `status` (active/completed/cancelled), `notes`, `created_by` (FK profiles), `created_at`
+`id`, `demand_id` (FK demands), `submission_id` (FK candidate_submissions), `supplier_id` (FK suppliers), `demand_title`, `candidate_name`, `candidate_email`, `supplier_name`, `start_date`, `end_date`, `rate`, `rate_type`, `currency`, `total_amount` (final agreed price, may differ from calc), `price_locked` (bool — manually set total), `status` (active/completed/cancelled), `notes`, `created_by` (FK profiles), `created_at`
 
 ## Migrations (run in Supabase SQL editor in order)
 
@@ -94,6 +108,10 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 | `20260616000014_engagements.sql` | engagements table + RLS |
 | `20260616000015_profiles_read_all.sql` | `profiles_select_all_authenticated` policy — all auth users can read all profiles (user switcher) |
 | `20260617000016_social_media.sql` | `social_posts` table + `social_platform` / `social_post_status` enums + RLS |
+| `20260617000017_engagement_total.sql` | `total_amount` + `price_locked` columns on engagements |
+| `20260617000018_engagement_updated_at.sql` | `updated_at` column + auto-update trigger on engagements |
+| `20260617000019_notifications.sql` | `notifications` table + `notification_type` enum + RLS + Realtime |
+| `20260617000017_engagement_total.sql` | `total_amount` + `price_locked` columns on `engagements` |
 
 ## Storage Buckets
 Both buckets are **private** (RLS-protected), max 10 MB, PDF only.
@@ -134,6 +152,8 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | `/dashboard/engagements/[id]` | Engagement detail with status actions (Mark Completed / Cancel / Reactivate) |
 | `/dashboard/profile` | Candidate profile editor (candidate only) |
 | `/dashboard/applications` | Candidate's own applications with match scores, sorted best match first (candidate only) |
+| `/dashboard/social-media` | All social posts across all demands — filter by platform/status, full management (admin/recruiter only) |
+| `/dashboard/submissions` | All submissions inbox — sorted by submitted_at, filter by status/source, "New" badge (admin/recruiter/hiring_manager) |
 
 ### Supplier Portal (protected, supplier role)
 | Route | Description |
@@ -173,6 +193,14 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 2. `createEngagement()` in `src/lib/actions/engagements.ts` inserts engagement, sets submission → `hired` AND demand → `closed` in parallel, emails supplier
 3. Demand detail shows green "Position Filled" banner linking to engagement detail
 4. Demand can be re-opened: `closed → open` is a valid status transition
+
+### Social Media Module
+- **Per-demand**: visible on demand detail when `career_portal` in `demand.channels`, for admin/recruiter/hiring_manager
+- **Content generation**: `src/lib/social-media/generator.ts` — template-based, platform-aware captions + hashtags
+- **Canvas image**: `generateImage(post, demand)` in `social-media-client.tsx` — client-side 1080×1080 dark design, dot grid, blue glows, QR code (via `qrcode` npm), skill chips
+- **Tracking URL**: `${NEXT_PUBLIC_APP_URL}/careers/${demandId}?ref=${trackingCode}` — `NEXT_PUBLIC_APP_URL` must be set on Vercel to `https://workforce-platform-omega.vercel.app`
+- **Status workflow**: draft → approved → posted (terminal) / rejected → revise → draft; archived from any
+- **Server actions**: `src/lib/actions/social-posts.ts` — all revalidate both demand detail and `/dashboard/social-media`
 
 ### Email (`src/lib/email.ts`)
 All functions silently no-op if `RESEND_API_KEY` is not set. FROM: `'WorkforceX <onboarding@resend.dev>'`

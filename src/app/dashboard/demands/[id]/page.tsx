@@ -308,6 +308,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
             demandTitle={demand.title}
             demandStartDate={demand.start_date ?? ''}
             demandEndDate={demand.end_date ?? ''}
+            contractType={demand.contract_type ?? 'contractor'}
             role={role}
           />
         </div>
@@ -364,7 +365,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
       )}
 
       {/* Social Media */}
-      {canViewSubmissions && (
+      {demand.channels?.includes('career_portal') && canViewSubmissions && (
         <div className="mt-6">
           <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
             Social Media

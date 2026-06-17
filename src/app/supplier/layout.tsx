@@ -1,12 +1,44 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { DevDataGenerator } from '@/components/DevDataGenerator';
+import { SupplierSidebar } from './supplier-sidebar';
+import type { Profile } from '@/types/database';
 
 async function signOut() {
   'use server';
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect('/login');
+}
+
+async function switchToUser(formData: FormData) {
+  'use server';
+  const userId = formData.get('userId') as string;
+  const email = formData.get('email') as string;
+  const role = formData.get('role') as string;
+  if (!userId && !email) return;
+
+  if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createAdminClient();
+      const { data } = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: {
+          redirectTo: `${process.env.APP_URL ?? 'https://workforce-platform-omega.vercel.app'}${role === 'supplier' ? '/supplier' : '/dashboard'}`,
+        },
+      });
+      if (data?.properties?.action_link) {
+        redirect(data.properties.action_link);
+      }
+    } catch { /* fall through */ }
+  }
+
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  await supabase.auth.signInWithPassword({ email, password: 'Test1234!' });
+  redirect(role === 'supplier' ? '/supplier' : '/dashboard');
 }
 
 export default async function SupplierLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +52,6 @@ export default async function SupplierLayout({ children }: { children: React.Rea
     .eq('id', user.id)
     .single();
 
-  // Only supplier role (or admin for testing) can access this portal
   if (profile?.role && !['supplier', 'admin'].includes(profile.role)) {
     redirect('/dashboard');
   }
@@ -28,39 +59,37 @@ export default async function SupplierLayout({ children }: { children: React.Rea
   const displayName = profile?.full_name || profile?.email || user.email || '';
   const initial = displayName[0]?.toUpperCase() ?? '?';
 
+  const profilesClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase;
+  const [{ data: allProfilesData }, { data: supplierProfiles }] = await Promise.all([
+    profilesClient.from('profiles').select('id, role, full_name, email').order('role'),
+    profilesClient.from('suppliers').select('profile_id, company_name').not('profile_id', 'is', null),
+  ]);
+  const supplierNameMap = Object.fromEntries(
+    ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
+  );
+  const allUsers = ((allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[])
+    .filter(p => p.email)
+    .map(p => ({
+      id: p.id,
+      email: p.email!,
+      role: p.role,
+      displayName: p.role === 'supplier' && supplierNameMap[p.id]
+        ? supplierNameMap[p.id]
+        : (p.full_name || p.email || p.id),
+    }));
+
   return (
     <div className="min-h-screen bg-[#F2F2F7]">
-      {/* Top bar */}
-      <header className="bg-white border-b border-[#E5E5EA] px-6 h-14 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-5">
-          <span className="text-[17px] font-bold tracking-tight text-black">WorkforceX</span>
-          <nav className="flex items-center gap-0.5">
-            <a href="/supplier" className="px-3 py-1.5 rounded-lg text-[14px] font-medium text-[#3C3C43] hover:bg-[#F2F2F7] transition-colors">Demands</a>
-            <a href="/supplier/candidates" className="px-3 py-1.5 rounded-lg text-[14px] font-medium text-[#3C3C43] hover:bg-[#F2F2F7] transition-colors">Candidates</a>
-          </nav>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[12px] font-semibold"
-              style={{ backgroundColor: '#007AFF' }}
-            >
-              {initial}
-            </div>
-            <span className="text-[13px] text-[#3C3C43] hidden sm:block">{displayName}</span>
-          </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="text-[13px] font-medium text-[#FF3B30] hover:opacity-70 transition-opacity"
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
-      </header>
-
-      <main>{children}</main>
+      <SupplierSidebar
+        displayName={displayName}
+        initial={initial}
+        signOut={signOut}
+        switchToUser={switchToUser}
+        allUsers={allUsers}
+      />
+      <main className="md:ml-56 pt-14 md:pt-0 min-h-screen">
+        {children}
+      </main>
       <DevDataGenerator />
     </div>
   );

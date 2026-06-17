@@ -141,6 +141,20 @@ export interface SocialPost {
   updated_at: string;
 }
 
+export type NotificationType = 'new_submission' | 'submission_status' | 'engagement_created' | 'demand_received';
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  related_id: string | null;
+  related_type: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface Engagement {
   id: string;
   demand_id: string;
@@ -155,8 +169,11 @@ export interface Engagement {
   rate: number | null;
   rate_type: string;
   currency: string;
+  total_amount: number | null;
+  price_locked: boolean;
   status: EngagementStatus;
   notes: string | null;
   created_at: string;
+  updated_at: string;
   created_by: string | null;
 }

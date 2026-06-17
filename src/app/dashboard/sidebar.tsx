@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { NavLink } from './nav-link';
 import { DevUserSwitcher } from '@/components/DevUserSwitcher';
+import { NotificationsBell } from '@/components/NotificationsBell';
+import type { Notification } from '@/types/database';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
@@ -24,12 +26,15 @@ interface SidebarProps {
   initial: string;
   role: string;
   canSeeDemands: boolean;
+  newSubmissionsCount: number;
+  notifications: Notification[];
+  userId: string;
   signOut: () => Promise<void>;
   switchToUser: (formData: FormData) => Promise<void>;
   allUsers: UserOption[];
 }
 
-export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, switchToUser, allUsers }: SidebarProps) {
+export function Sidebar({ displayName, initial, role, canSeeDemands, newSubmissionsCount, notifications, userId, signOut, switchToUser, allUsers }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -129,11 +134,35 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
           )}
 
           {['admin', 'recruiter', 'hiring_manager'].includes(role) && (
+            <NavLink href="/dashboard/submissions">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+              <span className="flex-1">Submissions</span>
+              {newSubmissionsCount > 0 && (
+                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
+                  {newSubmissionsCount > 99 ? '99+' : newSubmissionsCount}
+                </span>
+              )}
+            </NavLink>
+          )}
+
+          {['admin', 'recruiter', 'hiring_manager'].includes(role) && (
             <NavLink href="/dashboard/engagements">
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
               </svg>
               Engagements
+            </NavLink>
+          )}
+
+          {(role === 'admin' || role === 'recruiter') && (
+            <NavLink href="/dashboard/social-media">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
+              </svg>
+              Social Media
             </NavLink>
           )}
 
@@ -186,6 +215,7 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
               <p className="text-[11px] font-semibold text-black truncate leading-tight">{displayName}</p>
               <p className="text-[10px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
             </div>
+            <NotificationsBell initial={notifications} userId={userId} />
             <DevUserSwitcher switchAction={switchToUser} allUsers={allUsers} />
           </div>
           <form action={signOut} className="mt-1">

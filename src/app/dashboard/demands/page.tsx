@@ -58,7 +58,7 @@ export default async function DemandsPage({ searchParams }: PageProps) {
   let query = supabase
     .from('demands')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('updated_at', { ascending: false });
 
   if (status && status !== 'all') query = query.eq('status', status as DemandStatus);
   if (priority && priority !== 'all') query = query.eq('priority', priority as DemandPriority);
@@ -150,7 +150,7 @@ export default async function DemandsPage({ searchParams }: PageProps) {
                     </div>
                   )}
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right flex-shrink-0 min-w-[90px]">
                   {(demand.budget_min || demand.budget_max) && (
                     <p className="text-[14px] font-semibold text-black">
                       {demand.budget_min && demand.budget_max
@@ -161,7 +161,10 @@ export default async function DemandsPage({ searchParams }: PageProps) {
                     </p>
                   )}
                   <p className="text-[12px] text-[#8E8E93] mt-0.5">
-                    {new Date(demand.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    Updated {new Date(demand.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </p>
+                  <p className="text-[11px] text-[#C7C7CC]">
+                    Created {new Date(demand.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </p>
                   <svg className="w-4 h-4 text-[#C6C6C8] mt-1 ml-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 18l6-6-6-6" />

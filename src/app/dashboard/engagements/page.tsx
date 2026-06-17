@@ -17,7 +17,7 @@ export default async function EngagementsPage() {
   const { data } = await supabase
     .from('engagements')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('updated_at', { ascending: false });
 
   const engagements = (data ?? []) as Engagement[];
 
