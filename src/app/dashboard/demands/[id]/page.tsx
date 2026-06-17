@@ -364,7 +364,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
       )}
 
       {/* Social Media */}
-      {demand.channels?.includes('career_portal') && canViewSubmissions && (
+      {canViewSubmissions && (
         <div className="mt-6">
           <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
             Social Media
