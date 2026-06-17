@@ -35,6 +35,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Email Notifications**: 5 functions (demand sent, candidates submitted, status changed, application confirmation, engagement created)
 - **AI Test Data**: `DevDataGenerator` (✨ button) fills forms with Claude-generated realistic DACH enterprise data, context-aware via page H1/H2
 - **Dev User Switcher**: switch between test users from sidebar (all roles → all roles)
+- **Social Media Module**: planned, not yet implemented — spec in `social_media_module_spec.md`; migration (section 3 of spec) not yet applied to Supabase
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
