@@ -35,5 +35,15 @@ create policy "social_posts_admin_recruiter"
 -- hiring_manager: own demands only
 create policy "social_posts_hiring_manager"
   on social_posts for all to authenticated
-  using  (get_my_role() = 'hiring_manager' and demand_id = any(get_my_demand_ids()))
-  with check (get_my_role() = 'hiring_manager' and demand_id = any(get_my_demand_ids()));
+  using  (
+    get_my_role() = 'hiring_manager'
+    and exists (
+      select 1 from demands where id = demand_id and created_by = auth.uid()
+    )
+  )
+  with check (
+    get_my_role() = 'hiring_manager'
+    and exists (
+      select 1 from demands where id = demand_id and created_by = auth.uid()
+    )
+  );
