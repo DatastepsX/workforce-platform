@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const body = (await req.json()) as { path: string; fields: FieldInfo[] };
+  const body = (await req.json()) as { path: string; fields: FieldInfo[]; pageContext?: string };
   const isPublicPath = body?.path?.startsWith('/careers/');
 
   if (!user && !isPublicPath) {
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }
 
-  const { path, fields } = body;
+  const { path, fields, pageContext } = body;
 
   // Determine the right email for this form before calling Claude
   const prefix = prefixFromPath(path);
@@ -110,6 +110,10 @@ export async function POST(req: NextRequest) {
     return line;
   }).join('\n');
 
+  const pageContextSection = pageContext
+    ? `\nPage context (current demand / job title shown on screen): "${pageContext}"\nThis is the most important signal — generate ALL data to match this role/position exactly.\n`
+    : '';
+
   const contextSection = prefilledContext
     ? `\nUser has already entered the following — treat this as the central theme and generate everything else to match it:\n${prefilledContext}\n`
     : '';
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
 
 Current page: ${path}
 Today's date: ${today}
-${contextSection}
+${pageContextSection}${contextSection}
 Form fields to fill:
 ${fieldDescriptions}
 

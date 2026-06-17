@@ -63,9 +63,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initial = displayName[0]?.toUpperCase() ?? '?';
   const canSeeDemands = ['admin', 'hiring_manager', 'recruiter'].includes(role);
 
-  // Fetch all profiles for user switcher — must bypass RLS so every role sees all users
-  const adminForSwitcher = createAdminClient();
-  const { data: allProfilesData } = await adminForSwitcher
+  // Fetch all profiles for user switcher.
+  // Migration 015 adds "profiles_select_all_authenticated" so every logged-in
+  // role can read all profiles. The admin client is kept as a safe fallback.
+  const profilesClient = process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createAdminClient()
+    : supabase;
+  const { data: allProfilesData } = await profilesClient
     .from('profiles')
     .select('id, role, full_name, email')
     .order('role');

@@ -105,7 +105,7 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, signOut, sw
             </NavLink>
           )}
 
-          {canSeeDemands && (
+          {(role === 'admin' || role === 'recruiter') && (
             <NavLink href="/dashboard/suppliers">
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />

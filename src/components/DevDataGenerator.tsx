@@ -177,10 +177,16 @@ export function DevDataGenerator() {
         return;
       }
 
+      // Capture page heading so AI generates role/demand-relevant data
+      const pageContext = [
+        document.querySelector('h1')?.textContent?.trim(),
+        document.querySelector('h2')?.textContent?.trim(),
+      ].filter(Boolean).join(' · ');
+
       const res = await fetch('/api/generate-test-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: pathname, fields }),
+        body: JSON.stringify({ path: pathname, fields, pageContext }),
       });
 
       if (!res.ok) {

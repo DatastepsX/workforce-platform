@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { Profile, Demand, CandidateProfile, CandidateSubmission } from '@/types/database';
+import type { Profile, Demand, CandidateProfile, CandidateSubmission, Engagement } from '@/types/database';
 import { computeMatch, matchColor } from '@/lib/matching';
 
 function getGreeting() {
@@ -69,6 +69,19 @@ export default async function DashboardPage() {
     }
   }
 
+  // Fetch engagement stats for relevant roles
+  let engagementStats: { total: number; active: number } | null = null;
+  if (['admin', 'hiring_manager', 'recruiter'].includes(role)) {
+    const { data: engs } = await supabase.from('engagements').select('status');
+    if (engs) {
+      const e = engs as Pick<Engagement, 'status'>[];
+      engagementStats = {
+        total: e.length,
+        active: e.filter(x => x.status === 'active').length,
+      };
+    }
+  }
+
   // Candidate: fetch their applications + compute best match
   let candidateStats: { count: number; bestScore: number | null } | null = null;
   if (role === 'candidate') {
@@ -102,11 +115,22 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       {demandStats !== null && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-4 mb-4">
           <StatCard label="Total Demands" value={demandStats.total} href="/dashboard/demands" />
           <StatCard label="Open" value={demandStats.open} href="/dashboard/demands?status=open" accent="#34C759" />
           <StatCard label="Draft" value={demandStats.draft} href="/dashboard/demands?status=draft" accent="#8E8E93" />
         </div>
+      )}
+
+      {/* Engagement stats */}
+      {engagementStats !== null && engagementStats.total > 0 && (
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <StatCard label="Active Engagements" value={engagementStats.active} href="/dashboard/engagements" accent="#34C759" />
+          <StatCard label="Total Engagements" value={engagementStats.total} href="/dashboard/engagements" accent="#007AFF" />
+        </div>
+      )}
+      {engagementStats !== null && engagementStats.total === 0 && demandStats !== null && (
+        <div className="mb-8" />
       )}
 
       {/* Quick actions */}

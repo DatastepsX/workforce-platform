@@ -39,7 +39,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
 
   const { data: rawSubs } = await supabase
     .from('candidate_submissions')
-    .select('*, supplier_candidates(skills, headline, phone, notes)')
+    .select('*, supplier_candidates(skills, headline, phone, notes), candidate_profiles!candidate_profile_id(skills, headline, hourly_rate_min, hourly_rate_max, currency)')
     .eq('demand_id', demandId)
     .order('submitted_at', { ascending: false });
 
@@ -71,10 +71,23 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
           phone: string | null;
           notes: string | null;
         } | null;
+        candidate_profiles?: {
+          skills: string[];
+          headline: string | null;
+          hourly_rate_min: number | null;
+          hourly_rate_max: number | null;
+          currency: string;
+        } | null;
       };
 
       const sc = sub.supplier_candidates;
-      const candidateSkills = sc?.skills ?? [];
+      const cp = sub.candidate_profiles;
+
+      // For direct applicants (source='direct'), use candidate_profiles skills.
+      // For supplier-submitted candidates, use supplier_candidates skills.
+      const candidateSkills = sc?.skills?.length ? sc.skills : (cp?.skills ?? []);
+      const candidateHeadline = sc?.headline ?? cp?.headline ?? null;
+
       const score = matchScore(candidateSkills, demandSkills);
       const matched = matchedSkills(candidateSkills, demandSkills);
       const cvPath = sub.cv_path;
@@ -92,7 +105,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
         candidateName: sub.candidate_name,
         candidateEmail: sub.candidate_email,
         candidatePhone: sc?.phone ?? null,
-        candidateHeadline: sc?.headline ?? null,
+        candidateHeadline,
         candidateSkills,
         candidateNotes: sc?.notes ?? null,
         submissionNotes: sub.notes,
