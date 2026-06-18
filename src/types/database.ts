@@ -53,6 +53,7 @@ export interface Supplier {
 
 export interface CandidateProfile {
   id: string;
+  full_name: string | null;
   headline: string | null;
   bio: string | null;
   skills: string[];
@@ -141,7 +142,7 @@ export interface SocialPost {
   updated_at: string;
 }
 
-export type NotificationType = 'new_submission' | 'submission_status' | 'engagement_created' | 'demand_received';
+export type NotificationType = 'new_submission' | 'submission_status' | 'engagement_created' | 'demand_received' | 'demand_created' | 'candidate_created' | 'supplier_created';
 
 export interface Notification {
   id: string;

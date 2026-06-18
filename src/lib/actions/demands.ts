@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createNotifications } from '@/lib/actions/notifications';
 import type { DemandStatus, DemandPriority, ContractType } from '@/types/database';
 
 export interface CreateDemandInput {
@@ -51,6 +52,23 @@ export async function createDemand(formData: FormData) {
   }).select().single();
 
   if (error) throw new Error(error.message);
+
+  // Notify all recruiters/admins (except the creator) about new demand
+  try {
+    const { data: targets } = await supabase
+      .from('profiles').select('id').in('role', ['recruiter', 'admin']);
+    const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
+    if (ids.length) {
+      await createNotifications({
+        userIds: ids,
+        type: 'demand_created',
+        title: `Neuer Demand: ${formData.get('title') as string}`,
+        body: `Erstellt von ${user.email}`,
+        relatedId: data.id,
+        relatedType: 'demand',
+      });
+    }
+  } catch { /* non-blocking */ }
 
   revalidatePath('/dashboard/demands');
   redirect(`/dashboard/demands/${data.id}`);

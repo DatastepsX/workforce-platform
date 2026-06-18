@@ -1,9 +1,11 @@
 import type { CandidateProfile, Demand } from '@/types/database';
 
 export interface MatchResult {
-  score: number;         // 0–100
-  skillScore: number;    // points from skills (max 70 or 100)
-  rateScore: number;     // points from rate (max 30), 0 if no rate data
+  score: number;            // 0–100 overall (weighted: 70% skills + 30% conditions)
+  skillScore: number;       // points from skills (max 70 or 100)
+  rateScore: number;        // points from rate (max 30), 0 if no rate data
+  skillsMatchPct: number;   // 0–100 pure skills match percentage
+  conditionsMatchPct: number | null; // 0–100 rate fit, null if no rate data
   matchedSkills: string[];
   missingSkills: string[];
   extraSkills: string[];
@@ -51,10 +53,19 @@ export function computeMatch(candidate: CandidateProfile, demand: Demand): Match
     }
   }
 
+  const skillsMatchPct =
+    demandSkills.length > 0
+      ? Math.round((matchedSkills.length / demandSkills.length) * 100)
+      : 100;
+
+  const conditionsMatchPct = hasRateData ? Math.round((rateScore / 30) * 100) : null;
+
   return {
     score: Math.min(100, skillScore + rateScore),
     skillScore,
     rateScore,
+    skillsMatchPct,
+    conditionsMatchPct,
     matchedSkills,
     missingSkills,
     extraSkills,

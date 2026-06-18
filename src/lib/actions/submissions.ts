@@ -227,3 +227,47 @@ export async function updateSubmissionStatus(
     }
   } catch { /* non-blocking */ }
 }
+
+// Assign a candidate profile to a demand directly from the match pool (recruiter/admin/hiring_manager)
+export async function assignCandidateToDemand(
+  candidateProfileId: string,
+  demandId: string,
+): Promise<{ error?: string; alreadyExists?: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single();
+  if (!['admin', 'recruiter', 'hiring_manager'].includes(profile?.role ?? '')) {
+    return { error: 'Not authorized' };
+  }
+
+  // Check if already submitted
+  const { data: existing } = await supabase
+    .from('candidate_submissions')
+    .select('id')
+    .eq('demand_id', demandId)
+    .eq('candidate_profile_id', candidateProfileId)
+    .maybeSingle();
+  if (existing) return { alreadyExists: true };
+
+  // Get candidate info
+  const { data: candidateProfile } = await supabase
+    .from('profiles').select('full_name, email').eq('id', candidateProfileId).single();
+
+  const { error } = await supabase.from('candidate_submissions').insert({
+    demand_id:            demandId,
+    candidate_profile_id: candidateProfileId,
+    candidate_name:       candidateProfile?.full_name || candidateProfile?.email || 'Unknown',
+    candidate_email:      candidateProfile?.email ?? null,
+    source:               'direct',
+    status:               'proposed',
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/demands/${demandId}`);
+  revalidatePath('/dashboard/submissions');
+  return {};
+}

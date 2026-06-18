@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo, useTransition, useRef } from 'react';
+import { useState, useMemo, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { updateEngagementStatus } from '@/lib/actions/engagements';
+import { markEngagementNotificationsRead } from '@/lib/actions/notifications';
 import type { Engagement, EngagementStatus } from '@/types/database';
 
 function countBusinessDays(start: string, end: string): number {
@@ -196,6 +197,8 @@ export function EngagementsClient({ engagements: initial }: { engagements: Engag
   const [engagements, setEngagements] = useState(initial);
   const [statusFilter, setStatusFilter] = useState<EngagementStatus | 'all'>('all');
   const [q, setQ] = useState('');
+
+  useEffect(() => { markEngagementNotificationsRead(); }, []);
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();

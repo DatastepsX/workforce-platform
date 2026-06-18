@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { markSubmissionNotificationsRead } from '@/lib/actions/notifications';
 
 type Submission = {
   id: string;
@@ -45,6 +46,11 @@ export function SubmissionsInboxClient({ submissions }: { submissions: Submissio
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [q, setQ] = useState('');
+
+  // Mark new_submission notifications as read when this page is viewed
+  useEffect(() => {
+    markSubmissionNotificationsRead();
+  }, []);
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();

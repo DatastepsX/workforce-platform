@@ -50,3 +50,50 @@ export async function markAllNotificationsRead() {
     .is('read_at', null);
   revalidatePath('/dashboard', 'layout');
 }
+
+async function markTypeRead(type: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('type', type)
+    .is('read_at', null);
+  revalidatePath('/dashboard', 'layout');
+}
+
+export async function markSubmissionNotificationsRead() {
+  return markTypeRead('new_submission');
+}
+
+export async function markDemandNotificationReadById(demandId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('type', 'demand_created')
+    .eq('related_id', demandId)
+    .is('read_at', null);
+  revalidatePath('/dashboard', 'layout');
+}
+
+export async function markDemandNotificationsRead() {
+  return markTypeRead('demand_created');
+}
+
+export async function markCandidateNotificationsRead() {
+  return markTypeRead('candidate_created');
+}
+
+export async function markSupplierNotificationsRead() {
+  return markTypeRead('supplier_created');
+}
+
+export async function markEngagementNotificationsRead() {
+  return markTypeRead('engagement_created');
+}

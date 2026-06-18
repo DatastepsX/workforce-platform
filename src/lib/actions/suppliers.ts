@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { emailDemandSentToSupplier } from '@/lib/email';
+import { createNotifications } from '@/lib/actions/notifications';
 import type { DemandSupplierStatus } from '@/types/database';
 
 export async function createSupplier(formData: FormData) {
@@ -69,6 +70,23 @@ export async function createSupplier(formData: FormData) {
       console.error('Supplier invite failed:', adminErr);
     }
   }
+
+  // Notify all recruiters/admins about new supplier
+  try {
+    const { data: targets } = await supabase
+      .from('profiles').select('id').in('role', ['recruiter', 'admin']);
+    const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
+    if (ids.length) {
+      await createNotifications({
+        userIds: ids,
+        type: 'supplier_created',
+        title: `Neuer Supplier: ${formData.get('company_name') as string}`,
+        body: formData.get('specializations') as string || undefined,
+        relatedId: supplier.id,
+        relatedType: 'supplier',
+      });
+    }
+  } catch { /* non-blocking */ }
 
   revalidatePath('/dashboard/suppliers');
   redirect('/dashboard/suppliers');
@@ -154,6 +172,26 @@ export async function sendToSuppliers(
           demandTitle: demand.title,
           demandId,
           deadline,
+        });
+      }
+
+      // In-app notification for each supplier's user account
+      const { data: supplierProfiles } = await supabase
+        .from('suppliers')
+        .select('profile_id')
+        .in('id', supplierIds)
+        .not('profile_id', 'is', null);
+      const profileIds = (supplierProfiles ?? [])
+        .map((s: { profile_id: string | null }) => s.profile_id)
+        .filter((id): id is string => !!id);
+      if (profileIds.length) {
+        await createNotifications({
+          userIds: profileIds,
+          type: 'demand_received',
+          title: `Neue Anfrage: ${demand.title}`,
+          body: deadline ? `Deadline: ${new Date(deadline).toLocaleDateString('de-DE')}` : undefined,
+          relatedId: demandId,
+          relatedType: 'demand',
         });
       }
     }

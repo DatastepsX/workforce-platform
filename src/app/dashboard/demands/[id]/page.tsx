@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { updateDemandStatus, deleteDemand } from '@/lib/actions/demands';
@@ -6,6 +7,7 @@ import { SendToSuppliersPanel } from './send-to-suppliers';
 import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
+import { DemandReadMarker } from './demand-read-marker';
 import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus } from '@/types/database';
 import { SocialMediaTab } from './social-media-tab';
 
@@ -60,7 +62,9 @@ export default async function DemandDetailPage({ params }: PageProps) {
   const demand = demandData as Demand;
   const role = (profileData?.role ?? 'candidate') as UserRole;
   const canEdit = demand.created_by === user.id || ['recruiter', 'admin'].includes(role);
-  const canSendToSuppliers = ['recruiter', 'admin'].includes(role);
+  // Hiring manager can send to suppliers for their own demands
+  const canSendToSuppliers = ['recruiter', 'admin'].includes(role) ||
+    (role === 'hiring_manager' && demand.created_by === user.id);
   const canViewSubmissions = ['recruiter', 'admin', 'hiring_manager'].includes(role);
 
   // Fetch creator profile separately (created_by → auth.users, no direct FK to profiles)
@@ -71,11 +75,12 @@ export default async function DemandDetailPage({ params }: PageProps) {
     .single();
   const creator = creatorProfile as { full_name: string | null; email: string | null } | null;
 
-  // Fetch suppliers + existing demand_suppliers for the send panel
+  // Fetch suppliers + existing demand_suppliers for the send panel (use admin client to bypass RLS for all roles including hiring_manager)
+  const adminDb = createAdminClient();
   const [{ data: suppliersData }, { data: sentData }] = canSendToSuppliers
     ? await Promise.all([
-        supabase.from('suppliers').select('*').order('company_name'),
-        supabase.from('demand_suppliers').select('*').eq('demand_id', id),
+        adminDb.from('suppliers').select('*').order('company_name'),
+        adminDb.from('demand_suppliers').select('*').eq('demand_id', id),
       ])
     : [{ data: null }, { data: null }];
 
@@ -118,6 +123,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
 
   return (
     <div className="px-8 py-10 max-w-3xl">
+      <DemandReadMarker demandId={id} />
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-[13px] text-[#8E8E93] mb-6">
         <Link href="/dashboard/demands" className="hover:text-[#007AFF] transition-colors">Demands</Link>

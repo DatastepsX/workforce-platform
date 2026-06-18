@@ -1,7 +1,9 @@
 import { Resend } from 'resend';
 
 const APP_URL = process.env.APP_URL ?? 'https://workforce-platform-omega.vercel.app';
-const FROM = 'WorkforceX <onboarding@resend.dev>';
+// Set RESEND_FROM_EMAIL to a verified sender (e.g. "WorkforceX <noreply@yourdomain.com>").
+// Falls back to Resend's shared test address which only delivers to the account owner's email.
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'WorkforceX <onboarding@resend.dev>';
 
 let resend: Resend | null = null;
 function getResend() {

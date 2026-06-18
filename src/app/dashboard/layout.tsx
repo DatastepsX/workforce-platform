@@ -69,10 +69,23 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profilesClient = process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createAdminClient()
     : supabase;
-  const [{ data: allProfilesData }, { data: supplierProfiles }, { count: newSubmissionsCount }, { data: notificationsData }] = await Promise.all([
+  const [
+    { data: allProfilesData },
+    { data: supplierProfiles },
+    { count: newSubmissionsCount },
+    { count: newDemandsCount },
+    { count: newCandidatesCount },
+    { count: newSuppliersCount },
+    { count: newEngagementsCount },
+    { data: notificationsData },
+  ] = await Promise.all([
     profilesClient.from('profiles').select('id, role, full_name, email').order('role'),
     profilesClient.from('suppliers').select('profile_id, company_name').not('profile_id', 'is', null),
-    supabase.from('candidate_submissions').select('*', { count: 'exact', head: true }).eq('status', 'proposed'),
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'new_submission').is('read_at', null),
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'demand_created').is('read_at', null),
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'candidate_created').is('read_at', null),
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'supplier_created').is('read_at', null),
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'engagement_created').is('read_at', null),
     supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
   ]);
   const supplierNameMap = Object.fromEntries(
@@ -96,7 +109,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         initial={initial}
         role={role}
         canSeeDemands={canSeeDemands}
+        newDemandsCount={newDemandsCount ?? 0}
+        newSuppliersCount={newSuppliersCount ?? 0}
+        newCandidatesCount={newCandidatesCount ?? 0}
         newSubmissionsCount={newSubmissionsCount ?? 0}
+        newEngagementsCount={newEngagementsCount ?? 0}
         notifications={(notificationsData ?? []) as Notification[]}
         userId={user.id}
         signOut={signOut}

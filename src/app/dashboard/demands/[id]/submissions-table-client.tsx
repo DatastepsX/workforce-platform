@@ -709,7 +709,7 @@ export function SubmissionsTableClient({
               <tr className="border-b border-[#F2F2F7]">
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-5 py-3">Candidate</th>
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[130px]">Via</th>
-                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3">Skills</th>
+                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[150px]">Skills</th>
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[110px]">Rate</th>
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[120px]" title="Skill overlap with demand requirements">
                   Match ✦
@@ -756,15 +756,15 @@ export function SubmissionsTableClient({
                         <span className="text-[13px] text-[#3C3C43]">{row.supplierName ?? '—'}</span>
                       )}
                     </td>
-                    <td className="px-3 py-3.5 align-top">
+                    <td className="px-3 py-3.5 align-middle w-[150px] max-w-[150px]">
                       {row.candidateSkills.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {row.candidateSkills.slice(0, 5).map(skill => {
+                        <div className="flex items-center gap-1 overflow-hidden">
+                          {row.candidateSkills.slice(0, 3).map(skill => {
                             const isMatch = row.matchedSkills.includes(skill);
                             return (
                               <span
                                 key={skill}
-                                className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                                className="text-[10px] px-1.5 py-0 rounded-full font-medium whitespace-nowrap flex-shrink-0"
                                 style={
                                   isMatch
                                     ? { backgroundColor: '#007AFF18', color: '#007AFF' }
@@ -775,8 +775,8 @@ export function SubmissionsTableClient({
                               </span>
                             );
                           })}
-                          {row.candidateSkills.length > 5 && (
-                            <span className="text-[11px] text-[#8E8E93]">+{row.candidateSkills.length - 5}</span>
+                          {row.candidateSkills.length > 3 && (
+                            <span className="text-[10px] text-[#C7C7CC] flex-shrink-0">+{row.candidateSkills.length - 3}</span>
                           )}
                         </div>
                       ) : (

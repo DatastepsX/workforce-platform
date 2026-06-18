@@ -3,7 +3,42 @@
     "allow": [
       "Bash(git commit -m 'Fix demand detail 404: split join query into two separate queries *)",
       "Bash(git commit -m ' *)",
-      "Bash(npm ls *)"
+      "Bash(npm ls *)",
+      "Bash(git check-ignore *)",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/dashboard/demands/\\\\[id\\\\]/edit)",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/dashboard/suppliers/\\\\[id\\\\]/edit)",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/dashboard/profile *)",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/supplier/demands/\\\\[id\\\\]/submit)",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/supplier/candidates/\\\\[id\\\\])",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/dashboard/demands/\\\\[id\\\\]/submissions)",
+      "Bash(vercel --prod)",
+      "Bash(npx tsx *)",
+      "Bash(git -C /Users/alessandro/workforce-platform status --short)",
+      "Bash(git -C /Users/alessandro/workforce-platform add src/app/api/generate-test-data/route.ts src/app/dashboard/demands/[id]/page.tsx src/app/dashboard/layout.tsx src/app/dashboard/sidebar.tsx src/app/dashboard/suppliers/page.tsx src/app/supplier/layout.tsx src/app/supplier/page.tsx src/components/DevDataGenerator.tsx src/lib/actions/demands.ts src/lib/actions/suppliers.ts src/types/database.ts tsconfig.json src/app/dashboard/candidates/ src/app/dashboard/demands/[id]/edit/ src/app/dashboard/demands/[id]/submissions/ src/app/dashboard/profile/ src/app/dashboard/suppliers/[id]/ src/app/supplier/candidates/ src/app/supplier/demands/ src/components/DeleteButton.tsx src/components/DevUserSwitcher.tsx src/lib/actions/candidates.ts src/lib/actions/submissions.ts src/lib/email.ts src/lib/supabase/admin.ts supabase/migrations/ package.json package-lock.json)",
+      "Bash(git -C /Users/alessandro/workforce-platform diff --cached --stat)",
+      "Bash(gh run *)",
+      "Bash(git -C /Users/alessandro/workforce-platform add 'src/app/dashboard/demands' 'src/types/database.ts')",
+      "Bash(git -C /Users/alessandro/workforce-platform add 'src/app/dashboard/demands' 'supabase/migrations')",
+      "Bash(git -C /Users/alessandro/workforce-platform add 'supabase/migrations/20260616000010_fix_hiring_manager_rls.sql')",
+      "Bash(git -C /Users/alessandro/workforce-platform add 'supabase/migrations/20260616000011_fix_suppliers_rls_cycle.sql')",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/careers/\\\\[id\\\\]/apply)",
+      "Bash(git -C /Users/alessandro/workforce-platform add src/app/careers src/app/dashboard/demands src/lib/actions/applications.ts src/types/database.ts supabase/migrations/20260616000012_career_portal.sql)",
+      "Bash(git -C /Users/alessandro/workforce-platform add 'src/app/dashboard/sidebar.tsx')",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/dashboard/engagements/\\\\[id\\\\])",
+      "Bash(npm list *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in {**d.get\\('dependencies',{}\\),**d.get\\('devDependencies',{}\\)}.items\\(\\) if 'qr' in k.lower\\(\\) or 'canvas' in k.lower\\(\\)}\\)\\)\")",
+      "Bash(vercel env *)",
+      "Bash(xargs ls)",
+      "Bash(vercel ls *)",
+      "Bash(vercel deploy *)",
+      "Bash(git -C /Users/alessandro/workforce-platform status)",
+      "Bash(git -C /Users/alessandro/workforce-platform add -A)",
+      "Bash(git -C /Users/alessandro/workforce-platform commit -m ' *)"
+    ],
+    "additionalDirectories": [
+      "/Users/alessandro/workforce-platform/src/app/dashboard/candidates",
+      "/Users/alessandro/workforce-platform/src/app/careers/[id]",
+      "/Users/alessandro/workforce-platform/src/app/dashboard/engagements"
     ]
   }
 }

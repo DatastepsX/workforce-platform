@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { deleteSupplier } from '@/lib/actions/suppliers';
+import { markSupplierNotificationsRead } from '@/lib/actions/notifications';
 import { DeleteButton } from '@/components/DeleteButton';
 import type { Supplier } from '@/types/database';
 
@@ -10,6 +11,8 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
+
+  useEffect(() => { markSupplierNotificationsRead(); }, []);
 
   const allSpecs = useMemo(() => {
     const seen: string[] = [];

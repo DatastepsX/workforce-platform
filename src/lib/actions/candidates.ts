@@ -2,12 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createNotifications } from '@/lib/actions/notifications';
 import type { AvailabilityType, RemotePreference, SeniorityLevel } from '@/types/database';
 
 export async function upsertCandidateProfile(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Unauthorized' };
+
+  // Check if this is a new profile (for notification purposes)
+  const { data: existing } = await supabase
+    .from('candidate_profiles').select('id').eq('id', user.id).maybeSingle();
 
   const split = (key: string) =>
     (formData.get(key) as string ?? '').split(',').map(s => s.trim()).filter(Boolean);
@@ -35,6 +40,26 @@ export async function upsertCandidateProfile(formData: FormData) {
   });
 
   if (error) return { error: error.message };
+
+  // If new profile, notify recruiters/admins
+  if (!existing) {
+    try {
+      const headline = (formData.get('headline') as string) || null;
+      const { data: targets } = await supabase
+        .from('profiles').select('id').in('role', ['recruiter', 'admin']);
+      const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
+      if (ids.length) {
+        await createNotifications({
+          userIds: ids,
+          type: 'candidate_created',
+          title: `Neues Kandidatenprofil`,
+          body: headline ?? undefined,
+          relatedId: user.id,
+          relatedType: 'candidate',
+        });
+      }
+    } catch { /* non-blocking */ }
+  }
 
   revalidatePath('/dashboard/profile');
   revalidatePath('/dashboard/candidates');

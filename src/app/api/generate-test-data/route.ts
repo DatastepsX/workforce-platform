@@ -69,6 +69,35 @@ async function nextNumber(prefix: string): Promise<number> {
   return allNumbers.length ? Math.max(...allNumbers) + 1 : 1;
 }
 
+async function fetchExistingContext(supabase: Awaited<ReturnType<typeof createClient>>, path: string): Promise<string> {
+  try {
+    const admin = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase;
+    const lines: string[] = [];
+
+    if (path.includes('/demands') || path.includes('/careers')) {
+      const { data } = await admin.from('demands').select('title').order('created_at', { ascending: false }).limit(30);
+      if (data?.length) {
+        lines.push(`Existing demand titles (DO NOT duplicate): ${data.map(d => `"${d.title}"`).join(', ')}`);
+      }
+    }
+    if (path.includes('/candidates') || path.includes('/profile') || path.includes('/careers')) {
+      const { data } = await admin.from('candidate_profiles').select('full_name').not('full_name', 'is', null).limit(30);
+      if (data?.length) {
+        lines.push(`Existing candidate names (generate different names): ${data.map(d => `"${d.full_name}"`).join(', ')}`);
+      }
+    }
+    if (path.includes('/suppliers')) {
+      const { data } = await admin.from('suppliers').select('company_name').limit(30);
+      if (data?.length) {
+        lines.push(`Existing supplier companies (generate different ones): ${data.map(d => `"${d.company_name}"`).join(', ')}`);
+      }
+    }
+    return lines.length ? `\n${lines.join('\n')}\n` : '';
+  } catch {
+    return '';
+  }
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -93,6 +122,8 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toISOString().split('T')[0];
   const soon = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  const existingContext = await fetchExistingContext(supabase, path);
 
   const prefilledContext = fields
     .filter(f => f.currentValue)
@@ -127,22 +158,29 @@ export async function POST(req: NextRequest) {
 
 Current page: ${path}
 Today's date: ${today}
-${pageContextSection}${contextSection}
+${pageContextSection}${contextSection}${existingContext}
 Form fields to fill:
 ${fieldDescriptions}
 
+Industry/Sector context — rotate across these to create diverse, realistic data:
+- Positions to fill: Technology & IT, Finance & Controlling, Construction & Property, Engineering, HR & People, Life Sciences & Pharma
+- Client companies come from: Aerospace & Defence, Consumer & Retail, Energy & Resources, Financial Services, Health & Pharmaceuticals, Infrastructure & Real Estate, Technology/Telecoms/Media
+- Company name style: German GmbH, AG, SE (e.g. "Siemens Energy AG", "DHL Group SE", "Allianz SE", "Bosch GmbH") — not generic names
+- Use the current page context and any existing data context (above) to pick an industry that is NOT yet represented or is underrepresented
+
 Rules:
-- Use German/European professional context: German names, DACH cities (München, Berlin, Hamburg, Frankfurt, Wien, Zürich, Stuttgart, Köln), realistic company names (GmbH, AG, SE style)
-- IMPORTANT: If the user already entered values (marked with [ALREADY FILLED]), return them unchanged and let them inspire everything else (e.g. if title is "SAP-Berater", generate SAP-relevant skills, budget, description, etc.)
+- CRITICAL: If existing data is listed above, generate DIFFERENT names/titles that don't duplicate what already exists
+- Candidate names: use realistic full German/Austrian/Swiss names (first + last name). Be creative — vary ethnicity (German, Turkish, Italian, Eastern European) for realism. Never repeat a name from the existing list.
+- DACH cities: München, Berlin, Hamburg, Frankfurt, Wien, Zürich, Stuttgart, Köln, Düsseldorf, Dresden, Leipzig, Graz, Basel
+- IMPORTANT: If the user already entered values (marked with [ALREADY FILLED]), return them unchanged and let them inspire everything else
 - select fields: return EXACTLY one of the provided option values (no other values)
 - date fields (type="date"): return YYYY-MM-DD format; start dates should be around ${soon}; end dates 6-12 months after start
-- number fields: budget fields 600–1500 for daily rates; experience 2–15; use integers
-- skills / specializations / comma-separated fields / fields with type "tags": return a comma-separated string of 4–6 realistic values (e.g. "SAP FI, SAP CO, ABAP, S/4HANA") relevant to the job/context
+- number fields: budget fields 700–1800 for daily rates; experience 2–18; use integers
+- skills / specializations / comma-separated fields / fields with type "tags": return a comma-separated string of 4–6 realistic values relevant to the specific role and industry
 - email fields: generate a placeholder — it will be replaced automatically
 - phone fields: use German format (+49 XX XXXXXXXX)
-- description / textarea: write 2–3 professional sentences in English fitting the specific role/context entered
+- description / textarea: write 2–3 professional sentences in GERMAN fitting the specific role/context (use formal German, e.g. "Wir suchen einen erfahrenen...")
 - Do NOT fill hidden, submit, or button fields
-- Vary the data — make it sound like a real enterprise scenario
 
 Return ONLY a valid JSON object with field names as keys and string values. No markdown, no code blocks, no explanation.`,
     }],

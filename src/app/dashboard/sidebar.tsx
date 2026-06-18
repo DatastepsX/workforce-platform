@@ -26,7 +26,11 @@ interface SidebarProps {
   initial: string;
   role: string;
   canSeeDemands: boolean;
+  newDemandsCount: number;
+  newSuppliersCount: number;
+  newCandidatesCount: number;
   newSubmissionsCount: number;
+  newEngagementsCount: number;
   notifications: Notification[];
   userId: string;
   signOut: () => Promise<void>;
@@ -34,7 +38,7 @@ interface SidebarProps {
   allUsers: UserOption[];
 }
 
-export function Sidebar({ displayName, initial, role, canSeeDemands, newSubmissionsCount, notifications, userId, signOut, switchToUser, allUsers }: SidebarProps) {
+export function Sidebar({ displayName, initial, role, canSeeDemands, newDemandsCount, newSuppliersCount, newCandidatesCount, newSubmissionsCount, newEngagementsCount, notifications, userId, signOut, switchToUser, allUsers }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -106,7 +110,12 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, newSubmissi
                 <rect x="9" y="3" width="6" height="4" rx="1" />
                 <path d="M9 12h6M9 16h4" />
               </svg>
-              Demands
+              <span className="flex-1">Demands</span>
+              {newDemandsCount > 0 && (
+                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
+                  {newDemandsCount > 99 ? '99+' : newDemandsCount}
+                </span>
+              )}
             </NavLink>
           )}
 
@@ -117,7 +126,12 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, newSubmissi
                 <circle cx="9" cy="7" r="4" />
                 <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
               </svg>
-              Suppliers
+              <span className="flex-1">Suppliers</span>
+              {newSuppliersCount > 0 && (
+                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
+                  {newSuppliersCount > 99 ? '99+' : newSuppliersCount}
+                </span>
+              )}
             </NavLink>
           )}
 
@@ -129,7 +143,12 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, newSubmissi
                 <path d="M16 3.13a4 4 0 010 7.75" />
                 <path d="M21 21v-2a4 4 0 00-3-3.87" />
               </svg>
-              Candidates
+              <span className="flex-1">Candidates</span>
+              {newCandidatesCount > 0 && (
+                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
+                  {newCandidatesCount > 99 ? '99+' : newCandidatesCount}
+                </span>
+              )}
             </NavLink>
           )}
 
@@ -152,7 +171,12 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, newSubmissi
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
               </svg>
-              Engagements
+              <span className="flex-1">Engagements</span>
+              {newEngagementsCount > 0 && (
+                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
+                  {newEngagementsCount > 99 ? '99+' : newEngagementsCount}
+                </span>
+              )}
             </NavLink>
           )}
 

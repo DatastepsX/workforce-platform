@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { DemandSupplierStatus, SubmissionStatus } from '@/types/database';
 import { SuppliersTableClient, type SupplierRow } from './suppliers-table-client';
 
 export async function SuppliersTable({ demandId }: { demandId: string }) {
-  const supabase = await createClient();
+  const admin = createAdminClient();
 
-  const { data: dsRows } = await supabase
+  const { data: dsRows } = await admin
     .from('demand_suppliers')
     .select('*')
     .eq('demand_id', demandId);
@@ -17,11 +17,11 @@ export async function SuppliersTable({ demandId }: { demandId: string }) {
   const supplierIds = dsRows.map(r => r.supplier_id);
 
   const [{ data: suppliersData }, { data: subsData }] = await Promise.all([
-    supabase
+    admin
       .from('suppliers')
       .select('id, company_name, contact_name, email, phone, specializations')
       .in('id', supplierIds),
-    supabase
+    admin
       .from('candidate_submissions')
       .select('id, supplier_id, candidate_name, status, proposed_rate, rate_type')
       .eq('demand_id', demandId),
