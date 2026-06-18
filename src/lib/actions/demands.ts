@@ -55,9 +55,11 @@ export async function createDemand(formData: FormData) {
 
   // Notify all recruiters/admins (except the creator) about new demand
   try {
-    const { data: targets } = await supabase
+    const { data: targets, error: targetsError } = await supabase
       .from('profiles').select('id').in('role', ['recruiter', 'admin']);
+    if (targetsError) console.error('[demands] targets fetch error:', targetsError.message);
     const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
+    console.log('[demands] notifying demand_created to', ids.length, 'users, creator:', user.id);
     if (ids.length) {
       await createNotifications({
         userIds: ids,
@@ -68,7 +70,7 @@ export async function createDemand(formData: FormData) {
         relatedType: 'demand',
       });
     }
-  } catch { /* non-blocking */ }
+  } catch (e) { console.error('[demands] notification block threw:', e); }
 
   revalidatePath('/dashboard/demands');
   redirect(`/dashboard/demands/${data.id}`);
