@@ -91,7 +91,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supplierNameMap = Object.fromEntries(
     ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
   );
-  const allUsers = ((allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[])
+
+  // For candidate-role users, look up candidate_profiles.full_name (where they actually set their name)
+  const allProfilesList = (allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[];
+  const candidateIds = allProfilesList.filter(p => p.role === 'candidate').map(p => p.id);
+  let candidateProfileNameMap: Record<string, string> = {};
+  if (candidateIds.length > 0) {
+    const { data: cpNames } = await profilesClient
+      .from('candidate_profiles')
+      .select('id, full_name')
+      .in('id', candidateIds)
+      .not('full_name', 'is', null);
+    candidateProfileNameMap = Object.fromEntries(
+      ((cpNames ?? []) as { id: string; full_name: string }[])
+        .filter(c => c.full_name && !c.full_name.includes('@'))
+        .map(c => [c.id, c.full_name])
+    );
+  }
+
+  const allUsers = allProfilesList
     .filter(p => p.email)
     .map(p => ({
       id: p.id,
@@ -99,6 +117,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       role: p.role,
       displayName: p.role === 'supplier' && supplierNameMap[p.id]
         ? supplierNameMap[p.id]
+        : p.role === 'candidate' && candidateProfileNameMap[p.id]
+        ? candidateProfileNameMap[p.id]
         : (p.full_name || p.email || p.id),
     }));
 

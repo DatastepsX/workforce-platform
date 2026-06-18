@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }
 
-  const { path, fields, pageContext } = body;
+  const { path, fields, pageContext, searchParams: rawSearchParams } = body as typeof body & { searchParams?: string };
 
   // Determine the right email for this form before calling Claude
   const prefix = prefixFromPath(path);
@@ -122,6 +122,29 @@ export async function POST(req: NextRequest) {
 
   const today = new Date().toISOString().split('T')[0];
   const soon = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // Extract demand ID from URL params (e.g. return_to=/supplier/demands/UUID/submit)
+  let demandContext = '';
+  if (rawSearchParams) {
+    try {
+      const sp = new URLSearchParams(rawSearchParams);
+      const returnTo = sp.get('return_to') ?? '';
+      const demandIdMatch = returnTo.match(/\/demands\/([0-9a-f-]{36})/i)
+        ?? path.match(/\/demands\/([0-9a-f-]{36})/i);
+      if (demandIdMatch) {
+        const demandId = demandIdMatch[1];
+        const admin = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase;
+        const { data: demand } = await admin.from('demands').select('title, description, skills').eq('id', demandId).single();
+        if (demand) {
+          demandContext = `\nLinked demand (generate candidate data that matches this position):
+Title: "${demand.title}"
+Skills required: ${(demand.skills ?? []).join(', ') || 'not specified'}
+${demand.description ? `Description: ${demand.description}` : ''}
+`;
+        }
+      }
+    } catch { /* non-blocking */ }
+  }
 
   const existingContext = await fetchExistingContext(supabase, path);
 
@@ -141,8 +164,8 @@ export async function POST(req: NextRequest) {
     return line;
   }).join('\n');
 
-  const pageContextSection = pageContext
-    ? `\nPage context (current demand / job title shown on screen): "${pageContext}"\nThis is the most important signal — generate ALL data to match this role/position exactly.\n`
+  const pageContextSection = (pageContext || demandContext)
+    ? `\n${demandContext || `Page context (current demand / job title shown on screen): "${pageContext}"\nThis is the most important signal — generate ALL data to match this role/position exactly.`}\n`
     : '';
 
   const contextSection = prefilledContext

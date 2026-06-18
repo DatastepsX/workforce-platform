@@ -183,10 +183,13 @@ export function DevDataGenerator() {
         document.querySelector('h2')?.textContent?.trim(),
       ].filter(Boolean).join(' · ');
 
+      // Pass full URL search params so the API can extract demand IDs from return_to etc.
+      const searchParams = window.location.search;
+
       const res = await fetch('/api/generate-test-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: pathname, fields, pageContext }),
+        body: JSON.stringify({ path: pathname, fields, pageContext, searchParams }),
       });
 
       if (!res.ok) {

@@ -1,4 +1,4 @@
-import type { CandidateProfile, Demand } from '@/types/database';
+import type { Demand } from '@/types/database';
 
 export interface MatchResult {
   score: number;            // 0–100 overall (weighted: 70% skills + 30% conditions)
@@ -13,7 +13,15 @@ export interface MatchResult {
   rateNote: string | null;
 }
 
-export function computeMatch(candidate: CandidateProfile, demand: Demand): MatchResult {
+// Accepts any object with the fields computeMatch needs — works for both CandidateProfile and SupplierCandidate
+export interface MatchableCandidate {
+  skills: string[];
+  hourly_rate_min: number | null;
+  hourly_rate_max: number | null;
+  currency: string | null;
+}
+
+export function computeMatch(candidate: MatchableCandidate, demand: Demand): MatchResult {
   const demandSkills = demand.skills ?? [];
   const candidateSkills = candidate.skills ?? [];
   const candLower = candidateSkills.map(s => s.toLowerCase());
@@ -40,7 +48,7 @@ export function computeMatch(candidate: CandidateProfile, demand: Demand): Match
   if (hasRateData) {
     const candRate = candidate.hourly_rate_max ?? candidate.hourly_rate_min ?? 0;
     const budgetCeil = demand.budget_max ?? demand.budget_min ?? 0;
-    const currency = candidate.currency ?? 'EUR';
+    const currency = (candidate.currency as string | null) ?? 'EUR';
 
     if (candRate <= budgetCeil) {
       rateScore = 30;

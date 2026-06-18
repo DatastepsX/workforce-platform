@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { emailCandidatesSubmitted, emailSubmissionStatusChanged } from '@/lib/email';
+import { createNotifications } from '@/lib/actions/notifications';
 import type { SubmissionStatus } from '@/types/database';
 
 // ── Supplier candidate pool ───────────────────────────────────────────────────
@@ -24,15 +26,32 @@ export async function createSupplierCandidate(formData: FormData) {
   const skills = (formData.get('skills') as string ?? '')
     .split(',').map(s => s.trim()).filter(Boolean);
 
+  // CV upload
+  let cvPath: string | null = (formData.get('cv_path') as string) || null;
+  const cvFile = formData.get('cv_file') as File | null;
+  if (cvFile && cvFile.size > 0) {
+    try {
+      const admin = createAdminClient();
+      const fileName = `${Date.now()}-${cvFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: uploadErr } = await admin.storage.from('supplier-cvs').upload(fileName, cvFile, { contentType: cvFile.type });
+      if (!uploadErr) cvPath = `supplier-cvs/${fileName}`;
+    } catch { /* non-blocking */ }
+  }
+
   const { error } = await supabase.from('supplier_candidates').insert({
-    supplier_id: supplierId,
-    name:     formData.get('name') as string,
-    email:    (formData.get('email') as string) || null,
-    phone:    (formData.get('phone') as string) || null,
-    headline: (formData.get('headline') as string) || null,
+    supplier_id:      supplierId,
+    name:             formData.get('name') as string,
+    email:            (formData.get('email') as string) || null,
+    phone:            (formData.get('phone') as string) || null,
+    headline:         (formData.get('headline') as string) || null,
     skills,
-    cv_path:  (formData.get('cv_path') as string) || null,
-    notes:    (formData.get('notes') as string) || null,
+    cv_path:          cvPath,
+    notes:            (formData.get('notes') as string) || null,
+    hourly_rate_min:  formData.get('hourly_rate_min') ? Number(formData.get('hourly_rate_min')) : null,
+    hourly_rate_max:  formData.get('hourly_rate_max') ? Number(formData.get('hourly_rate_max')) : null,
+    currency:         (formData.get('currency') as string) || 'EUR',
+    availability:     (formData.get('availability') as string) || null,
+    location:         (formData.get('location') as string) || null,
   });
 
   if (error) throw new Error(error.message);
@@ -51,14 +70,31 @@ export async function updateSupplierCandidate(formData: FormData) {
   const skills = (formData.get('skills') as string ?? '')
     .split(',').map(s => s.trim()).filter(Boolean);
 
+  // CV upload
+  let cvPath: string | null = (formData.get('cv_path') as string) || null;
+  const cvFile = formData.get('cv_file') as File | null;
+  if (cvFile && cvFile.size > 0) {
+    try {
+      const admin = createAdminClient();
+      const fileName = `${Date.now()}-${cvFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: uploadErr } = await admin.storage.from('supplier-cvs').upload(fileName, cvFile, { contentType: cvFile.type });
+      if (!uploadErr) cvPath = `supplier-cvs/${fileName}`;
+    } catch { /* non-blocking */ }
+  }
+
   const { error } = await supabase.from('supplier_candidates').update({
-    name:     formData.get('name') as string,
-    email:    (formData.get('email') as string) || null,
-    phone:    (formData.get('phone') as string) || null,
-    headline: (formData.get('headline') as string) || null,
+    name:             formData.get('name') as string,
+    email:            (formData.get('email') as string) || null,
+    phone:            (formData.get('phone') as string) || null,
+    headline:         (formData.get('headline') as string) || null,
     skills,
-    cv_path:  (formData.get('cv_path') as string) || null,
-    notes:    (formData.get('notes') as string) || null,
+    cv_path:          cvPath,
+    notes:            (formData.get('notes') as string) || null,
+    hourly_rate_min:  formData.get('hourly_rate_min') ? Number(formData.get('hourly_rate_min')) : null,
+    hourly_rate_max:  formData.get('hourly_rate_max') ? Number(formData.get('hourly_rate_max')) : null,
+    currency:         (formData.get('currency') as string) || 'EUR',
+    availability:     (formData.get('availability') as string) || null,
+    location:         (formData.get('location') as string) || null,
   }).eq('id', id).eq('supplier_id', supplierId);
 
   if (error) throw new Error(error.message);
@@ -145,16 +181,37 @@ export async function submitCandidates(
     .eq('demand_id', demandId)
     .eq('supplier_id', supplierId);
 
-  // Email notification: inform recruiters/admins
+  // Email + in-app notifications
   try {
-    const { data: demand } = await supabase.from('demands').select('title').eq('id', demandId).single();
-    const { data: supplier } = await supabase.from('suppliers').select('company_name').eq('id', supplierId).single();
-    const { data: recruiters } = await supabase.from('profiles')
-      .select('email').in('role', ['recruiter', 'admin']).not('email', 'is', null);
+    const notifyAdmin = createAdminClient();
+    const { data: demand } = await notifyAdmin.from('demands').select('title, created_by').eq('id', demandId).single();
+    const { data: supplier } = await notifyAdmin.from('suppliers').select('company_name').eq('id', supplierId).single();
+    const { data: targetProfiles } = await notifyAdmin.from('profiles')
+      .select('id, email, role').in('role', ['recruiter', 'admin']).not('email', 'is', null);
 
-    if (demand && supplier && recruiters?.length) {
+    // Also notify the HM who owns this demand
+    let allTargetIds = (targetProfiles ?? []).map(r => r.id);
+    if (demand?.created_by) {
+      const { data: owner } = await notifyAdmin.from('profiles').select('id, role, email').eq('id', demand.created_by).single();
+      if (owner?.role === 'hiring_manager' && !allTargetIds.includes(owner.id)) {
+        allTargetIds = [...allTargetIds, owner.id];
+      }
+    }
+
+    if (demand && allTargetIds.length) {
+      await createNotifications({
+        userIds: allTargetIds,
+        type: 'new_submission',
+        title: `Neue Bewerbung${newCandidates.length > 1 ? 'en' : ''}: ${newCandidates.map(c => c.name).join(', ')}`,
+        body: `Eingereicht für "${demand.title}"`,
+        relatedId: demandId,
+        relatedType: 'demand',
+      });
+    }
+
+    if (demand && supplier && targetProfiles?.length) {
       await emailCandidatesSubmitted({
-        recruiterEmails: recruiters.map(r => r.email!),
+        recruiterEmails: targetProfiles.map(r => r.email!).filter(Boolean),
         supplierName: supplier.company_name,
         demandTitle: demand.title,
         demandId,
@@ -226,6 +283,57 @@ export async function updateSubmissionStatus(
       }
     }
   } catch { /* non-blocking */ }
+}
+
+// Assign a supplier candidate to a demand directly from the admin match pool
+export async function assignSupplierCandidateToDemand(
+  supplierCandidateId: string,
+  demandId: string,
+): Promise<{ error?: string; alreadyExists?: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Unauthorized' };
+
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single();
+  if (!['admin', 'recruiter', 'hiring_manager'].includes(profile?.role ?? '')) {
+    return { error: 'Not authorized' };
+  }
+
+  // Check if already submitted
+  const { data: existing } = await supabase
+    .from('candidate_submissions')
+    .select('id')
+    .eq('demand_id', demandId)
+    .eq('supplier_candidate_id', supplierCandidateId)
+    .maybeSingle();
+  if (existing) return { alreadyExists: true };
+
+  // Fetch supplier candidate info using admin client (bypasses supplier RLS)
+  const admin = createAdminClient();
+  const { data: sc } = await admin
+    .from('supplier_candidates')
+    .select('name, email, cv_path, supplier_id')
+    .eq('id', supplierCandidateId)
+    .single();
+  if (!sc) return { error: 'Candidate not found' };
+
+  const { error } = await supabase.from('candidate_submissions').insert({
+    demand_id:             demandId,
+    supplier_id:           sc.supplier_id,
+    supplier_candidate_id: supplierCandidateId,
+    candidate_name:        sc.name,
+    candidate_email:       sc.email ?? null,
+    cv_path:               sc.cv_path ?? null,
+    source:                'supplier',
+    status:                'proposed',
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/demands/${demandId}`);
+  revalidatePath('/dashboard/submissions');
+  return {};
 }
 
 // Assign a candidate profile to a demand directly from the match pool (recruiter/admin/hiring_manager)

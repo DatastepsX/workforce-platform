@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import type { CandidateProfile, Profile, AvailabilityType, SeniorityLevel, RemotePreference } from '@/types/database';
+import type { CandidateProfile, Profile, AvailabilityType, SeniorityLevel, RemotePreference, SoftSkillRating } from '@/types/database';
+import { SOFT_SKILL_LABELS } from '@/types/database';
+import { SkillRadar } from '../../profile/skill-radar';
 
 const AVAIL_COLORS: Record<AvailabilityType, string> = {
   immediate: '#34C759', notice_period: '#FF9500', not_available: '#8E8E93',
@@ -36,14 +38,16 @@ export default async function CandidateDetailPage({ params }: PageProps) {
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (!['admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
 
-  const [{ data: cpData }, { data: profileData }] = await Promise.all([
+  const [{ data: cpData }, { data: profileData }, { data: ratingsData }] = await Promise.all([
     supabase.from('candidate_profiles').select('*').eq('id', id).single(),
     supabase.from('profiles').select('full_name, email').eq('id', id).single(),
+    supabase.from('soft_skill_ratings').select('*').eq('candidate_profile_id', id),
   ]);
 
   if (!cpData) notFound();
   const cp = cpData as CandidateProfile;
   const profile = profileData as Pick<Profile, 'full_name' | 'email'> | null;
+  const ratings = (ratingsData ?? []) as SoftSkillRating[];
   // Prefer candidate_profiles.full_name, then auth profile name, then derive from email alias
   const rawName = cp.full_name || profile?.full_name || profile?.email || '—';
   const name = rawName.includes('@')
@@ -176,7 +180,7 @@ export default async function CandidateDetailPage({ params }: PageProps) {
 
       {/* Links */}
       {(cp.linkedin_url || cp.portfolio_url) && (
-        <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+        <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] mb-4">
           <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2">Links</p>
           {cp.linkedin_url && (
             <Row label="LinkedIn" value={
@@ -193,6 +197,81 @@ export default async function CandidateDetailPage({ params }: PageProps) {
                 {cp.portfolio_url.replace('https://', '')}
               </a>
             } />
+          )}
+        </div>
+      )}
+
+      {/* Career Avatar (visible only if candidate made it public) */}
+      {cp.avatar_visible_to_recruiters && cp.avatar_status === 'ready' && (
+        <div className="space-y-4">
+          {/* Badge */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full text-white" style={{ backgroundColor: '#5856D6' }}>
+              ✦ Career Avatar
+            </span>
+          </div>
+
+          {/* Avatar summary */}
+          {cp.avatar_summary && (
+            <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+              <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-3">Profil-Zusammenfassung</p>
+              <p className="text-[14px] text-[#3C3C43] leading-relaxed whitespace-pre-wrap">{cp.avatar_summary}</p>
+            </div>
+          )}
+
+          {/* Soft skill radar */}
+          {ratings.length > 0 && (
+            <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+              <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-4">Soft Skill Radar</p>
+              <SkillRadar
+                selfRatings={Object.fromEntries(ratings.filter(r => r.self_rating != null).map(r => [r.skill, r.self_rating!]))}
+                aiRatings={Object.fromEntries(ratings.filter(r => r.ai_rating != null).map(r => [r.skill, r.ai_rating!]))}
+              />
+              <div className="mt-4 space-y-1.5">
+                {ratings.filter(r => r.ai_rating != null).map(r => (
+                  <div key={r.skill} className="flex items-center gap-3 text-[12px]">
+                    <span className="w-[160px] text-[#3C3C43]">{SOFT_SKILL_LABELS[r.skill as keyof typeof SOFT_SKILL_LABELS] ?? r.skill}</span>
+                    {r.self_rating && (
+                      <div className="flex items-center gap-1">
+                        <div className="h-1.5 rounded-full bg-[#007AFF]" style={{ width: `${(r.self_rating / 5) * 60}px` }} />
+                        <span className="text-[#007AFF]">{r.self_rating}/5</span>
+                      </div>
+                    )}
+                    {r.ai_rating && (
+                      <div className="flex items-center gap-1">
+                        <div className="h-1.5 rounded-full bg-[#5856D6]" style={{ width: `${(r.ai_rating / 5) * 60}px` }} />
+                        <span className="text-[#5856D6]">{r.ai_rating}/5</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Career goals */}
+          {cp.career_goals && (
+            <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+              <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2">Karriereziele</p>
+              <p className="text-[14px] text-[#3C3C43] leading-relaxed">{cp.career_goals}</p>
+            </div>
+          )}
+
+          {/* Strengths */}
+          {(cp.strengths || cp.preferred_positions?.length > 0) && (
+            <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
+              <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2">Stärken & Wunschpositionen</p>
+              {cp.strengths && <p className="text-[14px] text-[#3C3C43] leading-relaxed mb-3">{cp.strengths}</p>}
+              {cp.preferred_positions?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {cp.preferred_positions.map(pos => (
+                    <span key={pos} className="text-[12px] bg-[#5856D6]/10 text-[#5856D6] px-2.5 py-0.5 rounded-full font-medium">
+                      {pos}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

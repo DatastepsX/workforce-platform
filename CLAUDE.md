@@ -47,6 +47,11 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Notifications**: `notifications` table with Supabase Realtime; modern bell icon (filled when unread, `#FF3B30` badge); fixed-position dropdown above sidebar with type-colored icons, German header, clickable links, unread dot; triggered on: new career portal application (→ recruiters), engagement created (→ supplier + recruiters), demand created (→ recruiters/admins), supplier created (→ recruiters/admins), candidate profile created (→ recruiters/admins), demand sent to supplier (→ supplier in-app `demand_received`); migration `20260617000019_notifications.sql` + `20260618000020_notification_types.sql` (**must be applied for demand_created/candidate_created/supplier_created to work**); server actions in `src/lib/actions/notifications.ts`; each list page marks its notification type as read on mount; demand detail page marks the specific `demand_created` notification as read when opened (`DemandReadMarker` client component + `markDemandNotificationReadById`); `NotificationType` in `src/types/database.ts` includes all 7 types
 - **Engagement Total**: `total_amount` (final agreed price) + `price_locked` (manually set) on engagements; commission panel shows live calc with editable total override (orange "Preis festgelegt" badge when overridden); engagements list shows Duration + Total columns; detail page shows "Preis festgelegt" badge + diff vs calculation; migration `20260617000017_engagement_total.sql`
 - **Career Portal Rate**: apply form collects desired rate/salary with contract-type-aware wording (Wunschgehalt for permanent, Wunschsatz for freelance/contractor); saved as `proposed_rate` + `rate_type` on submission
+- **Career Avatar & Navigator**: AI-powered competency profile + career path planning for candidates; 4-step synchronous Claude pipeline (CV parse → avatar summary → career path → skill gaps); 12 soft skills with self-rating sliders + AI-inferred ratings; SVG radar chart (two lines: self vs AI); single visibility toggle per avatar; Career Navigator `/dashboard/career-navigator` shows personalized timeline with skill gaps, recommendations, and matched open demands; Career Ladders admin `/dashboard/career-ladders` (admin/recruiter) — 4 DACH seed ladders seeded; recruiter read-only view on candidate detail when avatar is visible; migration `20260618000022_career_avatar.sql`
+- **Profile Page Tabs**: `/dashboard/profile` shows two tabs — "Mein Profil" (ProfileForm) and "Kompetenzprofil" (AvatarSection/Career Avatar); purple dot badge on tab when avatar is ready; implemented via `ProfilePageTabs` client component (`src/app/dashboard/profile/profile-page-tabs.tsx`)
+- **Unified Candidates List**: `/dashboard/candidates` shows both `candidate_profiles` (registered) and `supplier_candidates` (supplier-uploaded) in one list; registered candidates link to detail pages, supplier candidates shown with purple "Lieferant" badge; Match Pool includes both types for scoring; `computeMatch()` widened to accept `MatchableCandidate` interface (works for both types); `assignSupplierCandidateToDemand()` action for assigning supplier candidates from the pool
+- **Candidate Display Names**: DevUserSwitcher and candidates list now show real full names by looking up `candidate_profiles.full_name` for candidate-role users (fixes "Applicant1" display)
+- **DevDataGenerator Demand Context**: When generating test data on supplier candidate forms with a `return_to` URL pointing to a demand, the API looks up the demand's title + skills and instructs Claude to generate matching candidate data
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
@@ -72,6 +77,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 
 ### `candidate_profiles`
 `id` (FK auth.users), `full_name`, `email`, `phone`, `headline`, `skills` (text[]), `specializations` (text[]), `hourly_rate_min`, `hourly_rate_max`, `currency`, `cv_path`, `created_at`, `updated_at`
+Avatar fields: `avatar_visible_to_recruiters` (bool), `career_goals`, `preferred_positions` (text[]), `strengths`, `weaknesses`, `motivation`, `learning_willingness` (1–5), `avatar_summary` (AI-generated), `avatar_generated_at`, `avatar_status` (none/generating/ready/error)
 
 ### `supplier_candidates`
 `id`, `supplier_id` (FK suppliers), `demand_id` (FK demands), `name`, `email`, `phone`, `headline`, `skills` (text[]), `notes`, `cv_path`, `created_at`
@@ -113,6 +119,8 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 | `20260617000019_notifications.sql` | `notifications` table + `notification_type` enum + RLS + Realtime |
 | `20260617000017_engagement_total.sql` | `total_amount` + `price_locked` columns on `engagements` |
 | `20260618000020_notification_types.sql` | ADD to `notification_type` enum: `demand_created`, `candidate_created`, `supplier_created` |
+| `20260618000021_supplier_candidate_rate.sql` | `hourly_rate_min/max`, `currency`, `availability`, `location` columns on `supplier_candidates` |
+| `20260618000022_career_avatar.sql` | Avatar fields on `candidate_profiles`; new tables: `soft_skill_ratings`, `career_ladders`, `career_ladder_steps`, `candidate_career_paths`, `career_skill_gaps`; seeds 4 DACH career ladders |
 
 ## Storage Buckets
 Both buckets are **private** (RLS-protected), max 10 MB, PDF only.
@@ -151,8 +159,12 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | `/dashboard/suppliers/[id]/edit` | Edit supplier |
 | `/dashboard/engagements` | Engagements list (admin/recruiter/hiring_manager) |
 | `/dashboard/engagements/[id]` | Engagement detail with status actions (Mark Completed / Cancel / Reactivate) |
-| `/dashboard/profile` | Candidate profile editor (candidate only) |
+| `/dashboard/profile` | Candidate profile editor + Career Avatar section (candidate only) |
 | `/dashboard/applications` | Candidate's own applications with match scores, sorted best match first (candidate only) |
+| `/dashboard/career-navigator` | Candidate's personalized career path timeline with skill gaps + open demand matches (candidate only) |
+| `/dashboard/career-ladders` | Career ladder list (admin/recruiter only) |
+| `/dashboard/career-ladders/new` | Create career ladder |
+| `/dashboard/career-ladders/[id]` | Edit career ladder + steps |
 | `/dashboard/social-media` | All social posts across all demands — filter by platform/status, full management (admin/recruiter only) |
 | `/dashboard/submissions` | All submissions inbox — sorted by submitted_at, filter by status/source, "New" badge (admin/recruiter/hiring_manager) |
 
@@ -169,6 +181,7 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | Route | Description |
 |---|---|
 | `/api/generate-test-data` | POST — Claude-powered AI form filler; body: `{ path, fields, pageContext }` |
+| `/api/career-avatar/generate` | POST — 4-step synchronous AI pipeline: CV parse → avatar summary → career path → skill gaps; sets `avatar_status` on `candidate_profiles` |
 
 ## Key Patterns
 
