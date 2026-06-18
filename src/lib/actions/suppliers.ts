@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { emailDemandSentToSupplier } from '@/lib/email';
 import { createNotifications } from '@/lib/actions/notifications';
 import type { DemandSupplierStatus } from '@/types/database';
@@ -145,8 +146,23 @@ export async function sendToSuppliers(
   if (!supplierIds.length) return;
 
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
 
-  const { error } = await supabase.from('demand_suppliers').insert(
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const role = profile?.role;
+
+  if (!['admin', 'recruiter', 'hiring_manager'].includes(role ?? '')) throw new Error('Not authorized');
+
+  // Hiring managers may only send their own demands
+  if (role === 'hiring_manager') {
+    const { data: demand } = await supabase.from('demands').select('created_by').eq('id', demandId).single();
+    if (demand?.created_by !== user.id) throw new Error('Not authorized');
+  }
+
+  // Use admin client for the insert to bypass RLS restrictions on demand_suppliers
+  const admin = createAdminClient();
+  const { error } = await admin.from('demand_suppliers').insert(
     supplierIds.map(sid => ({
       demand_id: demandId,
       supplier_id: sid,
@@ -159,8 +175,8 @@ export async function sendToSuppliers(
 
   // Send notification emails to each supplier
   try {
-    const { data: demand } = await supabase.from('demands').select('title').eq('id', demandId).single();
-    const { data: suppliers } = await supabase.from('suppliers')
+    const { data: demand } = await admin.from('demands').select('title').eq('id', demandId).single();
+    const { data: suppliers } = await admin.from('suppliers')
       .select('id, email, contact_name, company_name')
       .in('id', supplierIds);
 
@@ -176,7 +192,7 @@ export async function sendToSuppliers(
       }
 
       // In-app notification for each supplier's user account
-      const { data: supplierProfiles } = await supabase
+      const { data: supplierProfiles } = await admin
         .from('suppliers')
         .select('profile_id')
         .in('id', supplierIds)

@@ -44,7 +44,15 @@ export default async function CandidateDetailPage({ params }: PageProps) {
   if (!cpData) notFound();
   const cp = cpData as CandidateProfile;
   const profile = profileData as Pick<Profile, 'full_name' | 'email'> | null;
-  const name = profile?.full_name || profile?.email || '—';
+  // Prefer candidate_profiles.full_name, then auth profile name, then derive from email alias
+  const rawName = cp.full_name || profile?.full_name || profile?.email || '—';
+  const name = rawName.includes('@')
+    ? (() => {
+        const local = rawName.split('@')[0];
+        const alias = local.includes('+') ? local.split('+')[1] : local;
+        return alias.replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim() || rawName;
+      })()
+    : rawName;
   const initial = name[0].toUpperCase();
   const availColor = AVAIL_COLORS[cp.availability_type];
 
