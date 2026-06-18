@@ -17,7 +17,7 @@ export async function createNotifications({ userIds, type, title, body, relatedI
   if (!userIds.length) return;
   try {
     const admin = createAdminClient();
-    const { error } = await admin.from('notifications').insert(
+    const { error, data: inserted } = await admin.from('notifications').insert(
       userIds.map(uid => ({
         user_id: uid,
         type,
@@ -26,8 +26,9 @@ export async function createNotifications({ userIds, type, title, body, relatedI
         related_id: relatedId ?? null,
         related_type: relatedType ?? null,
       }))
-    );
+    ).select('id');
     if (error) console.error('[notifications] insert error:', error.message, '| type:', type, '| users:', userIds.length);
+    else console.log('[notifications] inserted', inserted?.length ?? '?', 'rows, type:', type);
   } catch (e) {
     console.error('[notifications] threw:', e);
   }

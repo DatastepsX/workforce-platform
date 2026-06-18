@@ -56,10 +56,10 @@ export async function createDemand(formData: FormData) {
   // Notify all recruiters/admins (except the creator) about new demand
   try {
     const { data: targets, error: targetsError } = await supabase
-      .from('profiles').select('id').in('role', ['recruiter', 'admin']);
-    if (targetsError) console.error('[demands] targets fetch error:', targetsError.message);
+      .from('profiles').select('id, role').in('role', ['recruiter', 'admin']);
+    console.log('[demands] creator uid:', user.id, '| targets:', JSON.stringify(targets), '| targetsErr:', targetsError?.message);
     const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
-    console.log('[demands] notifying demand_created to', ids.length, 'users, creator:', user.id);
+    console.log('[demands] notify ids:', JSON.stringify(ids));
     if (ids.length) {
       await createNotifications({
         userIds: ids,
