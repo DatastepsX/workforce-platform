@@ -37,6 +37,10 @@ export interface Demand {
   created_by: string;
   created_at: string;
   updated_at: string;
+  // Workflow Phase 1
+  process_stage: string;
+  process_status: string;
+  current_owner_role: string | null;
 }
 
 export interface Supplier {
@@ -73,6 +77,18 @@ export interface CandidateProfile {
   preferred_employment: string[];
   cv_path: string | null;
   updated_at: string;
+  // Career Avatar fields
+  avatar_visible_to_recruiters: boolean;
+  career_goals: string | null;
+  preferred_positions: string[];
+  work_preferences: Record<string, unknown>;
+  strengths: string | null;
+  weaknesses: string | null;
+  motivation: string | null;
+  learning_willingness: number | null;
+  avatar_summary: string | null;
+  avatar_generated_at: string | null;
+  avatar_status: AvatarStatus;
 }
 
 export type SubmissionStatus = 'proposed' | 'shortlisted' | 'interview' | 'offer' | 'hired' | 'rejected';
@@ -89,6 +105,11 @@ export interface SupplierCandidate {
   cv_path: string | null;
   notes: string | null;
   updated_at: string;
+  hourly_rate_min: number | null;
+  hourly_rate_max: number | null;
+  currency: string | null;
+  availability: string | null;
+  location: string | null;
 }
 
 export interface CandidateSubmission {
@@ -154,6 +175,101 @@ export interface Notification {
   related_type: string | null;
   read_at: string | null;
   created_at: string;
+}
+
+// ── Career Avatar ────────────────────────────────────────────────────────────
+
+export const SOFT_SKILLS = [
+  'communication', 'leadership', 'teamwork', 'analytical_thinking',
+  'problem_solving', 'creativity', 'project_management', 'negotiation',
+  'customer_orientation', 'data_analytics', 'presentation', 'organization',
+] as const;
+
+export type SoftSkill = typeof SOFT_SKILLS[number];
+
+export const SOFT_SKILL_LABELS: Record<SoftSkill, string> = {
+  communication: 'Kommunikation',
+  leadership: 'Leadership',
+  teamwork: 'Teamfähigkeit',
+  analytical_thinking: 'Analytisches Denken',
+  problem_solving: 'Problemlösung',
+  creativity: 'Kreativität',
+  project_management: 'Projektmanagement',
+  negotiation: 'Verhandlungsgeschick',
+  customer_orientation: 'Kundenorientierung',
+  data_analytics: 'Data Analytics',
+  presentation: 'Präsentationsfähigkeit',
+  organization: 'Organisation',
+};
+
+export type AvatarStatus = 'none' | 'generating' | 'ready' | 'error';
+
+export interface SoftSkillRating {
+  id: string;
+  candidate_profile_id: string;
+  skill: SoftSkill;
+  self_rating: number | null;
+  ai_rating: number | null;
+  updated_at: string;
+}
+
+export interface CareerLadder {
+  id: string;
+  name: string;
+  industry: string | null;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CareerLadderStep {
+  id: string;
+  ladder_id: string;
+  position: number;
+  title: string;
+  required_skills: string[];
+  description: string | null;
+}
+
+export interface CareerPathStep {
+  position: number;
+  title: string;
+  description: string;
+  required_skills: string[];
+  rationale: string;
+  is_current?: boolean;
+  estimated_duration_months?: number;
+  open_demands_count?: number;
+  matching_demand_ids?: string[];
+}
+
+export interface CandidateCareerPath {
+  id: string;
+  candidate_profile_id: string;
+  base_ladder_id: string | null;
+  path_type: 'ladder_based' | 'ai_custom';
+  title: string | null;
+  summary: string | null;
+  steps: CareerPathStep[];
+  generated_at: string;
+  is_current: boolean;
+}
+
+export interface CareerRecommendation {
+  type: 'course' | 'certification' | 'project' | 'mentoring';
+  title: string;
+  description: string;
+  url?: string;
+}
+
+export interface CareerSkillGap {
+  id: string;
+  career_path_id: string;
+  step_position: number;
+  missing_skills: string[];
+  recommendations: CareerRecommendation[];
+  generated_at: string;
 }
 
 export interface Engagement {

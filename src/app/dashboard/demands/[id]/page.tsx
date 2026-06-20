@@ -8,8 +8,13 @@ import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
 import { DemandReadMarker } from './demand-read-marker';
+import { MarkDemandUnreadButton } from './mark-unread-button';
 import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus } from '@/types/database';
 import { SocialMediaTab } from './social-media-tab';
+import { ProcessPanel } from './process-panel';
+import { getDemandProcessHistory } from '@/lib/actions/workflow';
+import { inferProcessStatus } from '@/lib/workflow/state-machine';
+import type { ProcessStage, DemandProcessStatus, ProcessHistoryEntry } from '@/lib/workflow/types';
 
 const STATUS_COLORS: Record<DemandStatus, string> = {
   draft: '#8E8E93',
@@ -90,6 +95,20 @@ export default async function DemandDetailPage({ params }: PageProps) {
     supplier: allSuppliers.find(s => s.id === entry.supplier_id)!,
   })).filter(e => e.supplier);
 
+  // Determine process stage/status (new columns or inferred from legacy status)
+  const rawStage = (demand as Demand & { process_stage?: string }).process_stage;
+  const rawStatus = (demand as Demand & { process_status?: string }).process_status;
+  const inferred = (!rawStage || !rawStatus) ? inferProcessStatus(demand.status) : null;
+  const processStage = (rawStage ?? inferred?.stage ?? 'DRAFT') as ProcessStage;
+  const processStatus = (rawStatus ?? inferred?.status ?? 'REQUEST_DRAFT') as DemandProcessStatus;
+  const currentOwnerRole = (demand as Demand & { current_owner_role?: string }).current_owner_role ?? null;
+
+  // Fetch process history (non-blocking for non-editors)
+  let processHistory: ProcessHistoryEntry[] = [];
+  if (['admin', 'recruiter', 'hiring_manager'].includes(role)) {
+    processHistory = (await getDemandProcessHistory(id)) as ProcessHistoryEntry[];
+  }
+
   // Fetch engagements for this demand
   let engagements: Engagement[] = [];
   if (canViewSubmissions) {
@@ -156,6 +175,18 @@ export default async function DemandDetailPage({ params }: PageProps) {
         </div>
       )}
 
+      {/* Process Panel — visible to recruiter/admin/hiring_manager */}
+      {['admin', 'recruiter', 'hiring_manager'].includes(role) && (
+        <ProcessPanel
+          demandId={id}
+          processStage={processStage}
+          processStatus={processStatus}
+          currentOwnerRole={currentOwnerRole}
+          role={role}
+          history={processHistory}
+        />
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start gap-3 mb-6">
         <div className="flex-1 min-w-0">
@@ -196,7 +227,10 @@ export default async function DemandDetailPage({ params }: PageProps) {
             </div>
           )}
           {canEdit && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              {['admin', 'recruiter'].includes(role ?? '') && (
+                <MarkDemandUnreadButton demandId={id} />
+              )}
               <Link
                 href={`/dashboard/demands/${id}/edit`}
                 className="px-3 py-1.5 rounded-[10px] text-[13px] font-medium text-[#007AFF] bg-[#007AFF]/8 hover:bg-[#007AFF]/15 transition-colors"

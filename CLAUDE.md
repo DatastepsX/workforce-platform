@@ -52,6 +52,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Unified Candidates List**: `/dashboard/candidates` shows both `candidate_profiles` (registered) and `supplier_candidates` (supplier-uploaded) in one list; registered candidates link to detail pages, supplier candidates shown with purple "Lieferant" badge; Match Pool includes both types for scoring; `computeMatch()` widened to accept `MatchableCandidate` interface (works for both types); `assignSupplierCandidateToDemand()` action for assigning supplier candidates from the pool
 - **Candidate Display Names**: DevUserSwitcher and candidates list now show real full names by looking up `candidate_profiles.full_name` for candidate-role users (fixes "Applicant1" display)
 - **DevDataGenerator Demand Context**: When generating test data on supplier candidate forms with a `return_to` URL pointing to a demand, the API looks up the demand's title + skills and instructs Claude to generate matching candidate data
+- **Workflow Phase 1 — Process Visibility**: `process_stage` (coarse, 13 values) + `process_status` (granular, 18 values) columns on `demands`; state machine in `src/lib/workflow/`; `ProcessPanel` component on demand detail page shows horizontal stage stepper + status card + role-filtered action buttons + collapsible history log; `transitionDemandStatus()` server action validates role, executes transition, syncs legacy `status`, logs to `process_history`; migration `20260620000023_process_workflow.sql`
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
@@ -121,6 +122,7 @@ Avatar fields: `avatar_visible_to_recruiters` (bool), `career_goals`, `preferred
 | `20260618000020_notification_types.sql` | ADD to `notification_type` enum: `demand_created`, `candidate_created`, `supplier_created` |
 | `20260618000021_supplier_candidate_rate.sql` | `hourly_rate_min/max`, `currency`, `availability`, `location` columns on `supplier_candidates` |
 | `20260618000022_career_avatar.sql` | Avatar fields on `candidate_profiles`; new tables: `soft_skill_ratings`, `career_ladders`, `career_ladder_steps`, `candidate_career_paths`, `career_skill_gaps`; seeds 4 DACH career ladders |
+| `20260620000023_process_workflow.sql` | `process_stage` + `process_status` enums + columns on `demands`; `process_history` table with RLS; backfills from legacy `status` |
 
 ## Storage Buckets
 Both buckets are **private** (RLS-protected), max 10 MB, PDF only.
