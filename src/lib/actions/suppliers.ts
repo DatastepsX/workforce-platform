@@ -74,7 +74,8 @@ export async function createSupplier(formData: FormData) {
 
   // Notify all recruiters/admins about new supplier
   try {
-    const { data: targets } = await supabase
+    const notifyAdmin = createAdminClient();
+    const { data: targets } = await notifyAdmin
       .from('profiles').select('id').in('role', ['recruiter', 'admin']);
     const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
     if (ids.length) {

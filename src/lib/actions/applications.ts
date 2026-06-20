@@ -101,7 +101,7 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
 
   // Notify recruiters
   try {
-    const { data: demand } = await admin.from('demands').select('title').eq('id', demandId).single();
+    const { data: demand } = await admin.from('demands').select('title, created_by').eq('id', demandId).single();
     const { data: recruiters } = await admin
       .from('profiles')
       .select('id, email')
@@ -109,13 +109,22 @@ export async function applyToDemand(formData: FormData): Promise<ApplyResult> {
       .not('email', 'is', null);
 
     const recruiterEmails = (recruiters ?? []).map(r => r.email as string).filter(Boolean);
-    const recruiterIds = (recruiters ?? []).map(r => r.id as string).filter(Boolean);
-    if (demand && recruiterIds.length) {
+    let notifyIds = (recruiters ?? []).map(r => r.id as string).filter(Boolean);
+
+    // Also notify HM who owns the demand
+    if (demand?.created_by) {
+      const { data: owner } = await admin.from('profiles').select('id, role').eq('id', demand.created_by).single();
+      if (owner?.role === 'hiring_manager' && !notifyIds.includes(owner.id)) {
+        notifyIds = [...notifyIds, owner.id];
+      }
+    }
+
+    if (demand && notifyIds.length) {
       await createNotifications({
-        userIds: recruiterIds,
+        userIds: notifyIds,
         type: 'new_submission',
-        title: `New application: ${name}`,
-        body: `Applied to "${demand.title}" via Career Portal`,
+        title: `Neue Bewerbung: ${name}`,
+        body: `Beworben für "${demand.title}" über Karriereportal`,
         relatedId: demandId,
         relatedType: 'demand',
       });

@@ -90,6 +90,24 @@ export async function markDemandNotificationsRead() {
   return markTypeRead('demand_created');
 }
 
+export async function markDemandNotificationUnread(demandId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from('notifications')
+    .update({ read_at: null })
+    .eq('user_id', user.id)
+    .eq('type', 'demand_created')
+    .eq('related_id', demandId);
+  revalidatePath('/dashboard/demands');
+  revalidatePath(`/dashboard/demands/${demandId}`);
+}
+
+export async function markAllDemandReceivedRead() {
+  return markTypeRead('demand_received');
+}
+
 export async function markCandidateNotificationsRead() {
   return markTypeRead('candidate_created');
 }

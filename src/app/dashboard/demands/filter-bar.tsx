@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
-import { markDemandNotificationsRead } from '@/lib/actions/notifications';
 import type { DemandStatus, DemandPriority } from '@/types/database';
 
 const STATUSES: { value: DemandStatus | 'all'; label: string }[] = [
@@ -31,7 +30,6 @@ export function FilterBar() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => { setQ(params.get('q') ?? ''); }, [params]);
-  useEffect(() => { markDemandNotificationsRead(); }, []);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params.toString());

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotifications } from '@/lib/actions/notifications';
 import type { DemandStatus, DemandPriority, ContractType } from '@/types/database';
 
@@ -55,11 +56,10 @@ export async function createDemand(formData: FormData) {
 
   // Notify all recruiters/admins (except the creator) about new demand
   try {
-    const { data: targets, error: targetsError } = await supabase
-      .from('profiles').select('id, role').in('role', ['recruiter', 'admin']);
-    console.log('[demands] creator uid:', user.id, '| targets:', JSON.stringify(targets), '| targetsErr:', targetsError?.message);
+    const adminDb = createAdminClient();
+    const { data: targets } = await adminDb
+      .from('profiles').select('id').in('role', ['recruiter', 'admin']);
     const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
-    console.log('[demands] notify ids:', JSON.stringify(ids));
     if (ids.length) {
       await createNotifications({
         userIds: ids,

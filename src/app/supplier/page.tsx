@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { updateDemandSupplierStatus } from '@/lib/actions/suppliers';
+import { DemandsReadMarker } from './demands-read-marker';
 import type { Demand, DemandSupplier, DemandSupplierStatus, Engagement, EngagementStatus } from '@/types/database';
 
 const STATUS_COLORS: Record<DemandSupplierStatus, string> = {
@@ -109,6 +110,7 @@ export default async function SupplierPortalPage() {
 
   return (
     <div className="px-5 py-8 max-w-2xl mx-auto">
+      <DemandsReadMarker />
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-[28px] font-bold tracking-tight text-black leading-tight">

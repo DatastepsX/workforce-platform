@@ -64,8 +64,17 @@ export default async function DemandsPage({ searchParams }: PageProps) {
   if (priority && priority !== 'all') query = query.eq('priority', priority as DemandPriority);
   if (q?.trim()) query = query.ilike('title', `%${q.trim()}%`);
 
-  const { data: demands } = await query;
+  const [{ data: demands }, { data: unreadNotifs }] = await Promise.all([
+    query,
+    supabase
+      .from('notifications')
+      .select('related_id')
+      .eq('user_id', user.id)
+      .eq('type', 'demand_created')
+      .is('read_at', null),
+  ]);
   const list = (demands ?? []) as Demand[];
+  const unreadIds = new Set((unreadNotifs ?? []).map(n => n.related_id as string));
 
   return (
     <div className="px-8 py-10">
@@ -100,15 +109,20 @@ export default async function DemandsPage({ searchParams }: PageProps) {
         </div>
       ) : (
         <div className="space-y-2">
-          {list.map(demand => (
+          {list.map(demand => {
+            const isUnread = unreadIds.has(demand.id);
+            return (
             <Link
               key={demand.id}
               href={`/dashboard/demands/${demand.id}`}
-              className="block bg-white rounded-2xl px-5 py-4 shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.1)] transition-shadow"
+              className={`block bg-white rounded-2xl px-5 py-4 shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.1)] transition-shadow ${isUnread ? 'border-l-[3px] border-[#007AFF]' : ''}`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
+                    {isUnread && (
+                      <span className="w-2 h-2 rounded-full bg-[#007AFF] flex-shrink-0" />
+                    )}
                     <span
                       className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
                       style={{
@@ -172,7 +186,7 @@ export default async function DemandsPage({ searchParams }: PageProps) {
                 </div>
               </div>
             </Link>
-          ))}
+          );})}
         </div>
       )}
     </div>

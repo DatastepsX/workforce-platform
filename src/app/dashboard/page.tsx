@@ -96,7 +96,7 @@ export default async function DashboardPage() {
       const { data: demands } = await supabase.from('demands').select('*').in('id', demandIds);
       if (demands) {
         const scores = (demands as Demand[]).map(d => computeMatch(candProfile as CandidateProfile, d).score);
-        bestScore = Math.max(...scores);
+        bestScore = scores.length > 0 ? Math.max(...scores) : null;
       }
     }
     candidateStats = { count, bestScore };

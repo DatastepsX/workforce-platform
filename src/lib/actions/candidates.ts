@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotifications } from '@/lib/actions/notifications';
 import type { AvailabilityType, RemotePreference, SeniorityLevel } from '@/types/database';
 
@@ -45,7 +46,8 @@ export async function upsertCandidateProfile(formData: FormData) {
   if (!existing) {
     try {
       const headline = (formData.get('headline') as string) || null;
-      const { data: targets } = await supabase
+      const notifyAdmin = createAdminClient();
+      const { data: targets } = await notifyAdmin
         .from('profiles').select('id').in('role', ['recruiter', 'admin']);
       const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
       if (ids.length) {

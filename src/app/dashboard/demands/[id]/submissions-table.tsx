@@ -3,7 +3,8 @@ import type { CandidateSubmission, SubmissionStatus, UserRole } from '@/types/da
 import { SubmissionsTableClient, type SubmissionRow } from './submissions-table-client';
 
 function matchScore(candidateSkills: string[], demandSkills: string[]): number | null {
-  if (!demandSkills.length || !candidateSkills.length) return null;
+  if (!demandSkills.length) return null;
+  if (!candidateSkills.length) return 0;
   const demandLower = demandSkills.map(s => s.toLowerCase());
   const hits = candidateSkills.filter(cs =>
     demandLower.some(d => d.includes(cs.toLowerCase()) || cs.toLowerCase().includes(d))
@@ -40,7 +41,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
 
   const { data: rawSubs } = await supabase
     .from('candidate_submissions')
-    .select('*, supplier_candidates(skills, headline, phone, notes), candidate_profiles!candidate_profile_id(skills, headline, hourly_rate_min, hourly_rate_max, currency)')
+    .select('*, supplier_candidates(skills, headline, phone, notes, hourly_rate_min, hourly_rate_max, currency), candidate_profiles!candidate_profile_id(skills, headline, hourly_rate_min, hourly_rate_max, currency)')
     .eq('demand_id', demandId)
     .order('submitted_at', { ascending: false });
 
@@ -71,6 +72,9 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
           headline: string | null;
           phone: string | null;
           notes: string | null;
+          hourly_rate_min: number | null;
+          hourly_rate_max: number | null;
+          currency: string | null;
         } | null;
         candidate_profiles?: {
           skills: string[];

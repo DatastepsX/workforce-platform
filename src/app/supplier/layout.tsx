@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { DevDataGenerator } from '@/components/DevDataGenerator';
 import { SupplierSidebar } from './supplier-sidebar';
-import type { Profile } from '@/types/database';
+import type { Profile, Notification } from '@/types/database';
 
 async function signOut() {
   'use server';
@@ -60,10 +60,13 @@ export default async function SupplierLayout({ children }: { children: React.Rea
   const initial = displayName[0]?.toUpperCase() ?? '?';
 
   const profilesClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase;
-  const [{ data: allProfilesData }, { data: supplierProfiles }] = await Promise.all([
+  const [{ data: allProfilesData }, { data: supplierProfiles }, { data: notificationsData }, { count: newDemandsRaw }] = await Promise.all([
     profilesClient.from('profiles').select('id, role, full_name, email').order('role'),
     profilesClient.from('suppliers').select('profile_id, company_name').not('profile_id', 'is', null),
+    supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'demand_received').is('read_at', null),
   ]);
+  const newDemandsCount = newDemandsRaw ?? 0;
   const supplierNameMap = Object.fromEntries(
     ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
   );
@@ -83,6 +86,9 @@ export default async function SupplierLayout({ children }: { children: React.Rea
       <SupplierSidebar
         displayName={displayName}
         initial={initial}
+        newDemandsCount={newDemandsCount}
+        notifications={(notificationsData ?? []) as Notification[]}
+        userId={user.id}
         signOut={signOut}
         switchToUser={switchToUser}
         allUsers={allUsers}

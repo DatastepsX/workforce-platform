@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { DevUserSwitcher } from '@/components/DevUserSwitcher';
+import { NotificationsBell } from '@/components/NotificationsBell';
+import type { Notification } from '@/types/database';
 
 interface UserOption {
   id: string;
@@ -13,23 +15,31 @@ interface UserOption {
 interface Props {
   displayName: string;
   initial: string;
+  newDemandsCount: number;
+  notifications: Notification[];
+  userId: string;
   signOut: () => Promise<void>;
   switchToUser: (formData: FormData) => Promise<void>;
   allUsers: UserOption[];
 }
 
-function NavItem({ href, children }: { href: string; children: React.ReactNode }) {
+function NavItem({ href, badge, children }: { href: string; badge?: number; children: React.ReactNode }) {
   return (
     <a
       href={href}
       className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium text-[#3C3C43] hover:text-black hover:bg-[#F2F2F7] transition-colors"
     >
-      {children}
+      <span className="flex-1 flex items-center gap-2.5">{children}</span>
+      {badge != null && badge > 0 && (
+        <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#007AFF] text-white text-[10px] font-bold flex items-center justify-center">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </a>
   );
 }
 
-export function SupplierSidebar({ displayName, initial, signOut, switchToUser, allUsers }: Props) {
+export function SupplierSidebar({ displayName, initial, newDemandsCount, notifications, userId, signOut, switchToUser, allUsers }: Props) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
 
@@ -69,7 +79,7 @@ export function SupplierSidebar({ displayName, initial, signOut, switchToUser, a
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-0.5" onClick={close}>
-          <NavItem href="/supplier">
+          <NavItem href="/supplier" badge={newDemandsCount}>
             <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
               <rect x="9" y="3" width="6" height="4" rx="1" />
@@ -103,6 +113,7 @@ export function SupplierSidebar({ displayName, initial, signOut, switchToUser, a
               <p className="text-[11px] font-semibold text-black truncate leading-tight">{displayName}</p>
               <p className="text-[10px] text-[#8E8E93] leading-tight">Supplier</p>
             </div>
+            <NotificationsBell initial={notifications} userId={userId} />
             <DevUserSwitcher switchAction={switchToUser} allUsers={allUsers} />
           </div>
           <form action={signOut} className="mt-1">

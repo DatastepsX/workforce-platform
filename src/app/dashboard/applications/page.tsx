@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import type { CandidateProfile, CandidateSubmission, Demand } from '@/types/database';
 import { computeMatch } from '@/lib/matching';
@@ -26,7 +27,8 @@ export default async function ApplicationsPage() {
 
   if (submissions && submissions.length > 0) {
     const demandIds = (submissions as CandidateSubmission[]).map(s => s.demand_id);
-    const { data: demands } = await supabase
+    const adminDb = createAdminClient();
+    const { data: demands } = await adminDb
       .from('demands').select('*').in('id', demandIds);
 
     const demandsMap = Object.fromEntries(

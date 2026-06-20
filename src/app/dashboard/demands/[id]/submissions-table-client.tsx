@@ -709,11 +709,11 @@ export function SubmissionsTableClient({
               <tr className="border-b border-[#F2F2F7]">
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-5 py-3">Candidate</th>
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[130px]">Via</th>
-                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[150px]">Skills</th>
-                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[110px]">Rate</th>
-                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[120px]" title="Skill overlap with demand requirements">
+                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[110px]" title="Skill overlap with demand requirements">
                   Match ✦
                 </th>
+                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[150px]">Skills</th>
+                <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[110px]">Rate</th>
                 <th className="text-left text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] px-3 py-3 w-[110px]">Status</th>
               </tr>
             </thead>
@@ -756,6 +756,9 @@ export function SubmissionsTableClient({
                         <span className="text-[13px] text-[#3C3C43]">{row.supplierName ?? '—'}</span>
                       )}
                     </td>
+                    <td className="px-3 py-3.5 align-top">
+                      <MatchBadge score={row.score} />
+                    </td>
                     <td className="px-3 py-3.5 align-middle w-[150px] max-w-[150px]">
                       {row.candidateSkills.length > 0 ? (
                         <div className="flex items-center gap-1 overflow-hidden">
@@ -792,9 +795,6 @@ export function SubmissionsTableClient({
                       ) : (
                         <span className="text-[12px] text-[#C7C7CC]">—</span>
                       )}
-                    </td>
-                    <td className="px-3 py-3.5 align-top">
-                      <MatchBadge score={row.score} />
                     </td>
                     <td className="px-3 py-3.5 align-top">
                       <div className="flex items-center justify-between gap-2">
