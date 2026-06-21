@@ -10,16 +10,16 @@
 
 | ID | Title | Size | Status |
 |---|---|---|---|
-| WFX-007 | Remove interview from demand status; shortlist/interview at submission level | M (5) | 🟡 In Progress |
-| WFX-010 | Compact ProcessPanel — show next-action owner, smaller buttons | S (2) | ⬜ Todo |
-| WFX-011 | Notification on Pending Approval | S (2) | ⬜ Todo |
-| WFX-012 | Candidate rates by contract type | S (2) | ⬜ Todo |
-| WFX-013 | History: supplier upload events + per-candidate actions | M (3) | ⬜ Todo |
-| WFX-015 | Demands list — mobile responsive | S (2) | ⬜ Todo |
-| WFX-016 | Rename Engagements → Awards; Commission → Award; approval workflow | M (3) | ⬜ Todo |
-| WFX-017 | Demand detail mobile status area overflow fix | XS (1) | ⬜ Todo |
-| WFX-018 | Smarter candidate matching display (no horizontal scroll) | M (3) | ⬜ Todo |
-| WFX-019 | Applicant full name in Match Pool (not "ApplicantX") | XS (1) | ⬜ Todo |
+| WFX-007 | Remove interview from demand status; shortlist/interview at submission level | M (5) | ✅ Done |
+| WFX-010 | Compact ProcessPanel — show next-action owner, smaller buttons | S (2) | ✅ Done |
+| WFX-011 | Notification on Pending Approval | S (2) | ✅ Done |
+| WFX-012 | Candidate rates by contract type | S (2) | ✅ Done |
+| WFX-013 | History: supplier upload events + per-candidate actions | M (3) | ✅ Done |
+| WFX-015 | Demands list — mobile responsive | S (2) | ✅ Done |
+| WFX-016 | Rename Engagements → Awards; Commission → Award | M (3) | ✅ Done |
+| WFX-017 | Demand detail mobile status area overflow fix | XS (1) | ✅ Done |
+| WFX-018 | Smarter candidate matching display (no horizontal scroll) | M (3) | ✅ Done |
+| WFX-019 | Applicant full name in Match Pool (not "ApplicantX") | XS (1) | ✅ Done |
 
 **Total:** 24 points
 
@@ -136,3 +136,4 @@ Shortlisting and interview happen at the **submission** level, not the demand le
 | Date | Event |
 |---|---|
 | 2026-06-20 | Sprint 1 kickoff — backlog created, stories defined |
+| 2026-06-21 | Sprint 1 complete — all 10 stories shipped, deployed to production |
