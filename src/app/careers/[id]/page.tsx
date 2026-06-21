@@ -8,13 +8,12 @@ const CONTRACT_LABELS: Record<string, string> = {
   contractor: 'Contractor', internship: 'Internship',
 };
 
-const INACTIVE_REASONS: Record<DemandStatus, string> = {
-  draft:      'This position is not yet published.',
-  open:       '',
-  in_progress: 'This position is currently being filled.',
-  on_hold:    'This position is currently on hold.',
-  closed:     'This position has been filled.',
-  cancelled:  'This position has been cancelled.',
+const INACTIVE_REASONS: Partial<Record<DemandStatus, string>> = {
+  draft:            'This position is not yet published.',
+  on_hold:          'This position is currently on hold.',
+  filled:           'This position has been filled.',
+  cancelled:        'This position has been cancelled.',
+  rejected:         'This position has been cancelled.',
 };
 
 export default async function CareerDemandPage({ params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +28,7 @@ export default async function CareerDemandPage({ params }: { params: Promise<{ i
 
   if (!data) notFound();
   const demand = data as Demand;
-  const isActive = demand.status === 'open';
+  const isActive = ['sourcing','screening','interview'].includes(demand.status);
 
   if (!isActive) {
     return (
@@ -48,7 +47,7 @@ export default async function CareerDemandPage({ params }: { params: Promise<{ i
           </div>
           <h1 className="text-[22px] font-bold text-black mb-2">{demand.title}</h1>
           <p className="text-[15px] text-[#8E8E93] mb-1">
-            {INACTIVE_REASONS[demand.status]}
+            {INACTIVE_REASONS[demand.status] ?? 'This position is no longer available.'}
           </p>
           <p className="text-[14px] text-[#8E8E93] mb-8">
             This position is no longer accepting applications.

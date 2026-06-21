@@ -2,7 +2,19 @@ export type UserRole = 'admin' | 'hiring_manager' | 'recruiter' | 'candidate' | 
 export type SeniorityLevel = 'junior' | 'mid' | 'senior' | 'lead';
 export type AvailabilityType = 'immediate' | 'notice_period' | 'not_available';
 export type RemotePreference = 'onsite' | 'hybrid' | 'remote' | 'flexible';
-export type DemandStatus = 'draft' | 'open' | 'in_progress' | 'on_hold' | 'closed' | 'cancelled';
+export type DemandStatus =
+  | 'draft'
+  | 'pending_review'
+  | 'pending_approval'
+  | 'sourcing'
+  | 'screening'
+  | 'interview'
+  | 'award'
+  | 'contracting'
+  | 'filled'
+  | 'on_hold'
+  | 'cancelled'
+  | 'rejected';
 export type DemandPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ContractType = 'permanent' | 'freelance' | 'contractor' | 'internship';
 export type SupplierStatus = 'active' | 'inactive';
@@ -34,13 +46,52 @@ export interface Demand {
   skills: string[];
   channels: string[];
   experience_years: number | null;
+  approval_level: number | null;
   created_by: string;
   created_at: string;
   updated_at: string;
-  // Workflow Phase 1
-  process_stage: string;
-  process_status: string;
-  current_owner_role: string | null;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantConfig {
+  id: string;
+  tenant_id: string;
+  // Demand workflow
+  demand_msp_review: boolean;
+  demand_approval_levels: number;
+  demand_approval_role_l1: string | null;
+  demand_approval_role_l2: string | null;
+  demand_approval_role_l3: string | null;
+  demand_msp_screening: boolean;
+  // Award workflow
+  award_msp_offer: boolean;
+  award_approval_levels: number;
+  award_approval_role_l1: string | null;
+  award_approval_role_l2: string | null;
+  award_approval_role_l3: string | null;
+  award_po_step: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProcessHistoryEntry {
+  id: string;
+  demand_id: string;
+  from_status: string | null;
+  to_status: string;
+  action: string;
+  actor_id: string | null;
+  actor_role: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 export interface Supplier {

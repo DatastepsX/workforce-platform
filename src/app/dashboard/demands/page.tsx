@@ -4,24 +4,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { FilterBar } from './filter-bar';
 import type { Demand, DemandStatus, DemandPriority } from '@/types/database';
-
-const STATUS_COLORS: Record<DemandStatus, string> = {
-  draft: '#8E8E93',
-  open: '#34C759',
-  in_progress: '#007AFF',
-  on_hold: '#FF9500',
-  closed: '#636366',
-  cancelled: '#FF3B30',
-};
-
-const STATUS_LABELS: Record<DemandStatus, string> = {
-  draft: 'Draft',
-  open: 'Open',
-  in_progress: 'In Progress',
-  on_hold: 'On Hold',
-  closed: 'Closed',
-  cancelled: 'Cancelled',
-};
+import { STATUS_COLORS, STATUS_LABELS } from '@/lib/workflow';
 
 const PRIORITY_LABELS: Record<DemandPriority, string> = {
   low: 'Low',

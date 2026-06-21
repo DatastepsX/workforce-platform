@@ -5,12 +5,18 @@ import { useState, useEffect, useRef } from 'react';
 import type { DemandStatus, DemandPriority } from '@/types/database';
 
 const STATUSES: { value: DemandStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'open', label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'on_hold', label: 'On Hold' },
-  { value: 'closed', label: 'Closed' },
+  { value: 'all',              label: 'All' },
+  { value: 'draft',            label: 'Draft' },
+  { value: 'pending_review',   label: 'MSP Review' },
+  { value: 'pending_approval', label: 'Approval' },
+  { value: 'sourcing',         label: 'Sourcing' },
+  { value: 'screening',        label: 'Screening' },
+  { value: 'interview',        label: 'Interview' },
+  { value: 'award',            label: 'Award' },
+  { value: 'contracting',      label: 'Contracting' },
+  { value: 'filled',           label: 'Filled' },
+  { value: 'on_hold',          label: 'On Hold' },
+  { value: 'cancelled',        label: 'Cancelled' },
 ];
 
 const PRIORITIES: { value: DemandPriority | 'all'; label: string }[] = [

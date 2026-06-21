@@ -33,12 +33,27 @@
       "Bash(vercel deploy *)",
       "Bash(git -C /Users/alessandro/workforce-platform status)",
       "Bash(git -C /Users/alessandro/workforce-platform add -A)",
-      "Bash(git -C /Users/alessandro/workforce-platform commit -m ' *)"
+      "Bash(git -C /Users/alessandro/workforce-platform commit -m ' *)",
+      "Bash(git -C /Users/alessandro/workforce-platform push origin main)",
+      "Bash(vercel inspect *)",
+      "Bash(vercel logs *)",
+      "Bash(git -C /Users/alessandro/workforce-platform add src/lib/actions/suppliers.ts src/app/dashboard/candidates/\\\\[id\\\\]/page.tsx)",
+      "Bash(git -C /Users/alessandro/workforce-platform add src/lib/actions/notifications.ts src/lib/actions/demands.ts)",
+      "Bash(git -C /Users/alessandro/workforce-platform commit -m 'Add notification error logging to diagnose silent failures *)",
+      "Bash(git -C /Users/alessandro/workforce-platform add src/lib/actions/demands.ts src/lib/actions/notifications.ts)",
+      "Bash(git -C /Users/alessandro/workforce-platform commit -m 'Add detailed notification debug logging *)",
+      "Bash(mkdir -p /Users/alessandro/workforce-platform/src/app/dashboard/career-navigator /Users/alessandro/workforce-platform/src/app/dashboard/career-ladders/new \"/Users/alessandro/workforce-platform/src/app/dashboard/career-ladders/[id]\")",
+      "Bash(git -C /Users/alessandro/workforce-platform status --porcelain)",
+      "Bash(sed -i '' \"s/demand\\\\.status === 'open'/['sourcing','screening','interview'].includes\\(demand.status\\)/\" /Users/alessandro/workforce-platform/src/app/careers/\\\\[id\\\\]/page.tsx)",
+      "Bash(sed -i '' \"s/x\\\\.status === 'open'/['sourcing','screening','interview'].includes\\(x.status\\)/\" /Users/alessandro/workforce-platform/src/app/dashboard/page.tsx)",
+      "Bash(sed -i '' \"s/\\\\.eq\\('status', 'open'\\)/.in\\('status', ['sourcing','screening','interview']\\)/\" /Users/alessandro/workforce-platform/src/app/dashboard/candidates/page.tsx /Users/alessandro/workforce-platform/src/app/careers/\\\\[id\\\\]/apply/page.tsx /Users/alessandro/workforce-platform/src/app/api/career-avatar/generate/route.ts)"
     ],
     "additionalDirectories": [
       "/Users/alessandro/workforce-platform/src/app/dashboard/candidates",
       "/Users/alessandro/workforce-platform/src/app/careers/[id]",
-      "/Users/alessandro/workforce-platform/src/app/dashboard/engagements"
+      "/Users/alessandro/workforce-platform/src/app/dashboard/engagements",
+      "/Users/alessandro/workforce-platform/src/app/dashboard/career-ladders",
+      "/Users/alessandro/workforce-platform/src/app/careers/[id]/apply"
     ]
   }
 }

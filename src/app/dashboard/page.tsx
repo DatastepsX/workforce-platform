@@ -63,7 +63,7 @@ export default async function DashboardPage() {
       const d = demands as Pick<Demand, 'status'>[];
       demandStats = {
         total: d.length,
-        open: d.filter(x => x.status === 'open').length,
+        open: d.filter(x => ['sourcing','screening','interview'].includes(x.status)).length,
         draft: d.filter(x => x.status === 'draft').length,
       };
     }

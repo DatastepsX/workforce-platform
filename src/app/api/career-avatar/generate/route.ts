@@ -49,7 +49,7 @@ export async function POST() {
 
     // Fetch open demands for cross-referencing
     const { data: openDemands } = await adminDb
-      .from('demands').select('id, title, skills').eq('status', 'open').limit(40);
+      .from('demands').select('id, title, skills').in('status', ['sourcing','screening','interview']).limit(40);
 
     // ── Step 1: Parse CV (if available) ──────────────────────────────────────
     let cvData: {

@@ -12,7 +12,7 @@ export default async function ApplyPage({ params }: { params: Promise<{ id: stri
     .from('demands')
     .select('id, title, location, contract_type')
     .eq('id', id)
-    .eq('status', 'open')
+    .in('status', ['sourcing','screening','interview'])
     .single();
 
   if (!data) notFound();

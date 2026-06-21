@@ -18,7 +18,7 @@ export default async function CandidatesPage() {
 
   const [{ data: cpData }, { data: demandsData }, { data: scData }, { data: suppliersData }] = await Promise.all([
     supabase.from('candidate_profiles').select('*').order('updated_at', { ascending: false }),
-    supabase.from('demands').select('*').eq('status', 'open').order('updated_at', { ascending: false }),
+    supabase.from('demands').select('*').in('status', ['sourcing','screening','interview']).order('updated_at', { ascending: false }),
     admin.from('supplier_candidates').select('*').order('created_at', { ascending: false }),
     admin.from('suppliers').select('id, company_name'),
   ]);

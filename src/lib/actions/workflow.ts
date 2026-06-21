@@ -3,9 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getTransitionsForStatus } from '@/lib/workflow/state-machine';
-import type { DemandProcessStatus } from '@/lib/workflow/types';
-import type { UserRole } from '@/types/database';
+import { getTransitions } from '@/lib/workflow';
+import type { DemandStatus, UserRole, TenantConfig } from '@/types/database';
+
+async function getDefaultConfig(admin: ReturnType<typeof createAdminClient>): Promise<TenantConfig> {
+  const { data } = await admin
+    .from('tenant_configs')
+    .select('*')
+    .limit(1)
+    .single();
+  return data as TenantConfig;
+}
 
 export async function transitionDemandStatus(
   demandId: string,
@@ -14,7 +22,7 @@ export async function transitionDemandStatus(
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Nicht angemeldet' };
+  if (!user) return { error: 'Not authenticated' };
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -22,50 +30,44 @@ export async function transitionDemandStatus(
     .eq('id', user.id)
     .single();
   const role = profile?.role as UserRole | undefined;
-  if (!role) return { error: 'Rolle nicht gefunden' };
+  if (!role) return { error: 'Role not found' };
 
   const admin = createAdminClient();
+
   const { data: demand } = await admin
     .from('demands')
-    .select('process_status, process_stage, created_by')
+    .select('status, approval_level, created_by')
     .eq('id', demandId)
     .single();
+  if (!demand) return { error: 'Demand not found' };
 
-  if (!demand) return { error: 'Demand nicht gefunden' };
+  const config = await getDefaultConfig(admin);
+  if (!config) return { error: 'Tenant config not found' };
 
-  const currentStatus = demand.process_status as DemandProcessStatus;
-  const availableTransitions = getTransitionsForStatus(currentStatus, role);
-  const transition = availableTransitions.find(t => t.action === action);
+  const currentStatus = demand.status as DemandStatus;
+  const approvalLevel = demand.approval_level as number | null;
 
-  if (!transition) return { error: 'Aktion nicht erlaubt' };
-  if (transition.requiresNote && !notes?.trim()) return { error: 'Notiz erforderlich' };
+  const transitions = getTransitions(currentStatus, approvalLevel, config, role);
+  const transition = transitions.find(t => t.action === action);
 
-  const toStage = transition.toStage;
-  const toStatus = transition.toStatus;
+  if (!transition) return { error: 'Action not allowed' };
+  if (transition.requiresNote && !notes?.trim()) return { error: 'A note is required for this action' };
 
-  // Update demands table
   const { error: updateError } = await admin
     .from('demands')
     .update({
-      process_stage: toStage,
-      process_status: toStatus,
-      current_owner_role: transition.ownerRole,
-      // Keep legacy status in sync where possible
-      ...(transition.legacyStatus ? { status: transition.legacyStatus } : {}),
+      status: transition.toStatus,
+      approval_level: transition.toApprovalLevel ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', demandId);
 
   if (updateError) return { error: updateError.message };
 
-  // Log to process_history
   await admin.from('process_history').insert({
-    entity_type: 'demand',
-    entity_id: demandId,
-    from_stage: demand.process_stage,
+    demand_id: demandId,
     from_status: currentStatus,
-    to_stage: toStage,
-    to_status: toStatus,
+    to_status: transition.toStatus,
     action,
     actor_id: user.id,
     actor_role: role,
@@ -78,7 +80,7 @@ export async function transitionDemandStatus(
   return {};
 }
 
-export async function getDemandProcessHistory(demandId: string) {
+export async function getDemandHistory(demandId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -86,9 +88,18 @@ export async function getDemandProcessHistory(demandId: string) {
   const { data } = await supabase
     .from('process_history')
     .select('*')
-    .eq('entity_type', 'demand')
-    .eq('entity_id', demandId)
+    .eq('demand_id', demandId)
     .order('created_at', { ascending: false });
 
   return data ?? [];
+}
+
+export async function getDefaultTenantConfig(): Promise<TenantConfig | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('tenant_configs')
+    .select('*')
+    .limit(1)
+    .single();
+  return data as TenantConfig | null;
 }

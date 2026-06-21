@@ -2,37 +2,18 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { updateDemandStatus, deleteDemand } from '@/lib/actions/demands';
+import { deleteDemand } from '@/lib/actions/demands';
 import { SendToSuppliersPanel } from './send-to-suppliers';
 import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
 import { DemandReadMarker } from './demand-read-marker';
 import { MarkDemandUnreadButton } from './mark-unread-button';
-import type { Demand, DemandStatus, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus } from '@/types/database';
+import type { Demand, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus, ProcessHistoryEntry, TenantConfig } from '@/types/database';
 import { SocialMediaTab } from './social-media-tab';
 import { ProcessPanel } from './process-panel';
-import { getDemandProcessHistory } from '@/lib/actions/workflow';
-import { inferProcessStatus } from '@/lib/workflow/state-machine';
-import type { ProcessStage, DemandProcessStatus, ProcessHistoryEntry } from '@/lib/workflow/types';
-
-const STATUS_COLORS: Record<DemandStatus, string> = {
-  draft: '#8E8E93',
-  open: '#34C759',
-  in_progress: '#007AFF',
-  on_hold: '#FF9500',
-  closed: '#636366',
-  cancelled: '#FF3B30',
-};
-
-const STATUS_LABELS: Record<DemandStatus, string> = {
-  draft: 'Draft',
-  open: 'Open',
-  in_progress: 'In Progress',
-  on_hold: 'On Hold',
-  closed: 'Closed',
-  cancelled: 'Cancelled',
-};
+import { getDemandHistory, getDefaultTenantConfig } from '@/lib/actions/workflow';
+import { STATUS_COLORS, STATUS_LABELS } from '@/lib/workflow';
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: '#8E8E93', medium: '#007AFF', high: '#FF9500', urgent: '#FF3B30',
@@ -95,18 +76,14 @@ export default async function DemandDetailPage({ params }: PageProps) {
     supplier: allSuppliers.find(s => s.id === entry.supplier_id)!,
   })).filter(e => e.supplier);
 
-  // Determine process stage/status (new columns or inferred from legacy status)
-  const rawStage = (demand as Demand & { process_stage?: string }).process_stage;
-  const rawStatus = (demand as Demand & { process_status?: string }).process_status;
-  const inferred = (!rawStage || !rawStatus) ? inferProcessStatus(demand.status) : null;
-  const processStage = (rawStage ?? inferred?.stage ?? 'DRAFT') as ProcessStage;
-  const processStatus = (rawStatus ?? inferred?.status ?? 'REQUEST_DRAFT') as DemandProcessStatus;
-  const currentOwnerRole = (demand as Demand & { current_owner_role?: string }).current_owner_role ?? null;
-
-  // Fetch process history (non-blocking for non-editors)
+  // Fetch process history + tenant config for ProcessPanel
   let processHistory: ProcessHistoryEntry[] = [];
+  let tenantConfig: TenantConfig | null = null;
   if (['admin', 'recruiter', 'hiring_manager'].includes(role)) {
-    processHistory = (await getDemandProcessHistory(id)) as ProcessHistoryEntry[];
+    [processHistory, tenantConfig] = await Promise.all([
+      getDemandHistory(id) as Promise<ProcessHistoryEntry[]>,
+      getDefaultTenantConfig(),
+    ]);
   }
 
   // Fetch engagements for this demand
@@ -131,14 +108,6 @@ export default async function DemandDetailPage({ params }: PageProps) {
     return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  const NEXT_STATUSES: Partial<Record<DemandStatus, DemandStatus[]>> = {
-    draft: ['open', 'cancelled'],
-    open: ['in_progress', 'on_hold', 'cancelled'],
-    in_progress: ['on_hold', 'closed', 'cancelled'],
-    on_hold: ['open', 'in_progress', 'cancelled'],
-    closed: ['open'],
-  };
-  const nextStatuses = canEdit ? (NEXT_STATUSES[demand.status] ?? []) : [];
 
   return (
     <div className="px-8 py-10 max-w-3xl">
@@ -175,14 +144,14 @@ export default async function DemandDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Process Panel — visible to recruiter/admin/hiring_manager */}
-      {['admin', 'recruiter', 'hiring_manager'].includes(role) && (
+      {/* Process Panel */}
+      {['admin', 'recruiter', 'hiring_manager'].includes(role) && tenantConfig && (
         <ProcessPanel
           demandId={id}
-          processStage={processStage}
-          processStatus={processStatus}
-          currentOwnerRole={currentOwnerRole}
+          status={demand.status}
+          approvalLevel={demand.approval_level}
           role={role}
+          config={tenantConfig}
           history={processHistory}
         />
       )}
@@ -207,25 +176,6 @@ export default async function DemandDetailPage({ params }: PageProps) {
           <h1 className="text-[28px] font-bold tracking-tight text-black leading-tight">{demand.title}</h1>
         </div>
         <div className="flex flex-col items-start sm:items-end gap-2">
-          {canEdit && nextStatuses.length > 0 && (
-            <div className="flex gap-2 flex-wrap">
-              {nextStatuses.map(s => (
-                <form key={s} action={updateDemandStatus.bind(null, id, s)}>
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 rounded-[10px] text-[13px] font-semibold border transition-colors"
-                    style={{
-                      borderColor: STATUS_COLORS[s],
-                      color: STATUS_COLORS[s],
-                      backgroundColor: STATUS_COLORS[s] + '10',
-                    }}
-                  >
-                    → {STATUS_LABELS[s]}
-                  </button>
-                </form>
-              ))}
-            </div>
-          )}
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               {['admin', 'recruiter'].includes(role ?? '') && (
