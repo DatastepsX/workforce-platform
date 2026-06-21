@@ -10,6 +10,9 @@ DROP TYPE IF EXISTS demand_process_status CASCADE;
 DROP TABLE IF EXISTS process_history;
 
 -- ── Rebuild demand_status enum ────────────────────────────────────────────────
+-- Drop policies that reference the status column (required before ALTER COLUMN TYPE)
+DROP POLICY IF EXISTS "demands_public_read" ON public.demands;
+
 -- Convert to text first so we can safely swap the enum type
 ALTER TABLE demands ALTER COLUMN status TYPE text USING status::text;
 
@@ -44,6 +47,13 @@ ALTER TABLE demands
 
 -- Tracks which approval level is active (1-3) during pending_approval / award
 ALTER TABLE demands ADD COLUMN IF NOT EXISTS approval_level integer DEFAULT NULL;
+
+-- Recreate the public read policy with new status values
+DROP POLICY IF EXISTS "demands_public_read" ON public.demands;
+CREATE POLICY "demands_public_read"
+  ON public.demands FOR SELECT
+  TO anon
+  USING (status IN ('sourcing', 'screening', 'interview') AND 'career_portal' = ANY(channels));
 
 -- ── Tenants ───────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tenants (

@@ -250,7 +250,7 @@ export function CandidatesListClient({
 
           {/* Skill chips */}
           {allSkills.length > 0 && (
-            <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex flex-wrap gap-1.5 mb-4">
               {selectedSkills.length > 0 && (
                 <button onClick={() => setSelectedSkills([])} className="text-[11px] text-[#FF3B30] hover:opacity-70 transition-opacity whitespace-nowrap flex-shrink-0 font-medium">
                   ✕ Clear

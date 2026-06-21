@@ -11,7 +11,6 @@ const STATUSES: { value: DemandStatus | 'all'; label: string }[] = [
   { value: 'pending_approval', label: 'Approval' },
   { value: 'sourcing',         label: 'Sourcing' },
   { value: 'screening',        label: 'Screening' },
-  { value: 'interview',        label: 'Interview' },
   { value: 'award',            label: 'Award' },
   { value: 'contracting',      label: 'Contracting' },
   { value: 'filled',           label: 'Filled' },

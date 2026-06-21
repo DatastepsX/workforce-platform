@@ -137,17 +137,21 @@ function CommissionPanel({
       let formula = '';
       if (rateType === 'daily') {
         total = businessDays * r;
-        formula = `${businessDays} Arbeitstage × ${r.toLocaleString('de-DE')} ${currency}`;
+        formula = `${businessDays} business days × ${r.toLocaleString()} ${currency}`;
       } else if (rateType === 'hourly') {
         total = businessDays * 8 * r;
-        formula = `${businessDays} Tage × 8 Std. × ${r.toLocaleString('de-DE')} ${currency}`;
+        formula = `${businessDays} days × 8 hrs × ${r.toLocaleString()} ${currency}`;
+      } else if (rateType === 'annual') {
+        const months = businessDays / 21;
+        total = (r / 12) * months;
+        formula = `${r.toLocaleString()} ${currency}/yr ÷ 12 × ${months.toFixed(1)} months`;
       } else if (rateType === 'monthly') {
         const months = businessDays / 21;
         total = months * r;
-        formula = `${months.toFixed(1)} Monate × ${r.toLocaleString('de-DE')} ${currency}`;
+        formula = `${months.toFixed(1)} months × ${r.toLocaleString()} ${currency}`;
       } else {
         total = r;
-        formula = `Pauschal ${r.toLocaleString('de-DE')} ${currency}`;
+        formula = `Fixed fee ${r.toLocaleString()} ${currency}`;
       }
       // Auto-fill total override only if user hasn't manually locked it
       if (!priceLocked) {
@@ -188,41 +192,52 @@ function CommissionPanel({
     });
   }, [row, demandTitle, startDate, endDate, rate, rateType, currency, notes, totalOverride, priceLocked, calc, onCommissioned, startTransition]);
 
-  const RATE_TYPE_LABELS: Record<string, string> = {
-    daily: 'pro Tag', hourly: 'pro Stunde', monthly: 'pro Monat', fixed: 'Pauschal',
-  };
+  const rateInputLabel = isPermanent
+    ? (rateType === 'annual' ? 'Annual Salary' : 'Monthly Salary')
+    : rateType === 'daily' ? 'Day Rate'
+    : rateType === 'hourly' ? 'Hourly Rate'
+    : 'Rate';
 
   return (
     <div className="mt-3 pt-3 border-t border-[#E5E5EA] space-y-3">
-      <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Beauftragung</p>
+      <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Award Details</p>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Startdatum</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Start Date</label>
           <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inp} />
         </div>
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Enddatum</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">End Date</label>
           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inp} />
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Rate</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">{rateInputLabel}</label>
           <input type="number" min="0" value={rate} onChange={e => setRate(e.target.value)} placeholder="0" className={inp} />
         </div>
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Einheit</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Unit</label>
           <select value={rateType} onChange={e => setRateType(e.target.value)} className={inp}>
-            <option value="daily">pro Tag</option>
-            <option value="hourly">pro Stunde</option>
-            <option value="monthly">pro Monat</option>
-            <option value="fixed">Pauschal</option>
+            {isPermanent ? (
+              <>
+                <option value="monthly">Monthly</option>
+                <option value="annual">Annual</option>
+              </>
+            ) : (
+              <>
+                <option value="daily">Per Day</option>
+                <option value="hourly">Per Hour</option>
+                <option value="monthly">Per Month</option>
+                <option value="fixed">Fixed Fee</option>
+              </>
+            )}
           </select>
         </div>
         <div>
-          <label className="text-[11px] text-[#8E8E93] mb-1 block">Währung</label>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Currency</label>
           <select value={currency} onChange={e => setCurrency(e.target.value)} className={inp}>
             <option>EUR</option><option>CHF</option><option>GBP</option><option>USD</option>
           </select>
@@ -232,41 +247,39 @@ function CommissionPanel({
       {/* Live cost calculator */}
       {calc && (
         <div className="bg-gradient-to-br from-[#007AFF]/8 to-[#007AFF]/4 rounded-xl p-3.5 border border-[#007AFF]/15 space-y-3">
-          <p className="text-[10px] font-semibold text-[#007AFF] uppercase tracking-[0.5px]">Kostenkalkulation</p>
+          <p className="text-[10px] font-semibold text-[#007AFF] uppercase tracking-[0.5px]">Cost Estimate</p>
 
           {/* Days breakdown — only for time-based rates */}
-          {rateType !== 'fixed' && (
+          {!['fixed', 'annual'].includes(rateType) && (
             <div className="flex items-center gap-3">
               <div className="text-center flex-1">
                 <p className="text-[18px] font-bold text-black leading-none">{calc.calendarDays}</p>
-                <p className="text-[10px] text-[#8E8E93] mt-0.5">Kal.&nbsp;Tage</p>
+                <p className="text-[10px] text-[#8E8E93] mt-0.5">Cal.&nbsp;Days</p>
               </div>
               <p className="text-[14px] text-[#C7C7CC]">−</p>
               <div className="text-center flex-1">
                 <p className="text-[18px] font-bold text-[#8E8E93] leading-none">{calc.weekendDays}</p>
-                <p className="text-[10px] text-[#8E8E93] mt-0.5">WE-Tage</p>
+                <p className="text-[10px] text-[#8E8E93] mt-0.5">Weekends</p>
               </div>
               <p className="text-[14px] text-[#C7C7CC]">=</p>
               <div className="text-center flex-1">
                 <p className="text-[18px] font-bold text-[#007AFF] leading-none">{calc.businessDays}</p>
-                <p className="text-[10px] text-[#007AFF] mt-0.5">Arbeitstage</p>
+                <p className="text-[10px] text-[#007AFF] mt-0.5">Working Days</p>
               </div>
             </div>
           )}
 
           {/* Formula */}
           <div className="bg-white/60 rounded-lg px-3 py-2">
-            <p className="text-[11px] text-[#8E8E93]">
-              {calc.formula} <span className="text-[#007AFF]">{RATE_TYPE_LABELS[rateType] ?? ''}</span>
-            </p>
+            <p className="text-[11px] text-[#8E8E93]">{calc.formula}</p>
           </div>
 
           {/* Total — editable override */}
           <div className="bg-white/80 rounded-xl p-3 space-y-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold text-[#3C3C43]">Gesamtvolumen</p>
+              <p className="text-[11px] font-semibold text-[#3C3C43]">Total Volume</p>
               {priceLocked && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500]">Preis festgelegt</span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500]">Price Locked</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -285,17 +298,17 @@ function CommissionPanel({
             </div>
             {priceLocked && calc && (
               <p className="text-[10px] text-[#8E8E93]">
-                Kalkulation: {currency} {Math.round(calc.total).toLocaleString('de-DE')} · Differenz: {currency} {(parseFloat(totalOverride) - calc.total).toLocaleString('de-DE', { maximumFractionDigits: 0 })}
+                Calculated: {currency} {Math.round(calc.total).toLocaleString()} · Difference: {currency} {(parseFloat(totalOverride) - calc.total).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
             )}
           </div>
 
-          {/* Permanent: annual context */}
+          {/* Permanent: annual salary context */}
           {isPermanent && annualSalary && (
             <div className="pt-2 border-t border-[#007AFF]/15">
               <p className="text-[11px] text-[#8E8E93]">
-                Jahresgehalt: <span className="font-semibold text-[#3C3C43]">{currency} {annualSalary.toLocaleString('de-DE')}</span>
-                <span className="ml-2">· Typische Vermittlungsgebühr 15–20%: <span className="font-semibold text-[#3C3C43]">{currency} {(annualSalary * 0.175).toLocaleString('de-DE', { maximumFractionDigits: 0 })}</span></span>
+                Annual Salary: <span className="font-semibold text-[#3C3C43]">{currency} {annualSalary.toLocaleString()}</span>
+                <span className="ml-2">· Typical placement fee 15–20%: <span className="font-semibold text-[#3C3C43]">{currency} {(annualSalary * 0.175).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></span>
               </p>
             </div>
           )}
@@ -303,9 +316,9 @@ function CommissionPanel({
       )}
 
       <div>
-        <label className="text-[11px] text-[#8E8E93] mb-1 block">Notizen (optional)</label>
+        <label className="text-[11px] text-[#8E8E93] mb-1 block">Notes (optional)</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-          className={inp + ' resize-none'} placeholder="Interne Notizen…" />
+          className={inp + ' resize-none'} placeholder="Internal notes…" />
       </div>
       {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
       <button
@@ -314,7 +327,7 @@ function CommissionPanel({
         className="w-full py-2.5 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
         style={{ backgroundColor: '#34C759', boxShadow: '0 2px 8px rgba(52,199,89,0.3)' }}
       >
-        {isPending ? 'Wird beauftragt…' : '✓ Beauftragung bestätigen'}
+        {isPending ? 'Processing…' : '✓ Confirm Award'}
       </button>
     </div>
   );
@@ -536,7 +549,7 @@ function CandidateDrawer({
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
                   </svg>
-                  Commission
+                  Award Candidate
                 </button>
               )}
             </div>

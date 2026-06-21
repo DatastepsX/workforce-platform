@@ -41,7 +41,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
 
   const { data: rawSubs } = await supabase
     .from('candidate_submissions')
-    .select('*, supplier_candidates(skills, headline, phone, notes, hourly_rate_min, hourly_rate_max, currency), candidate_profiles!candidate_profile_id(skills, headline, hourly_rate_min, hourly_rate_max, currency)')
+    .select('*, supplier_candidates(skills, headline, phone, notes, hourly_rate_min, hourly_rate_max, currency), candidate_profiles!candidate_profile_id(full_name, skills, headline, hourly_rate_min, hourly_rate_max, currency)')
     .eq('demand_id', demandId)
     .order('submitted_at', { ascending: false });
 
@@ -77,6 +77,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
           currency: string | null;
         } | null;
         candidate_profiles?: {
+          full_name: string | null;
           skills: string[];
           headline: string | null;
           hourly_rate_min: number | null;
@@ -98,6 +99,11 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
       const cvPath = sub.cv_path;
       const cvSignedUrl = cvPath ? await getSignedUrl(supabase, cvPath) : null;
 
+      // For direct applicants, prefer the full_name from their profile over stored submission name
+      const resolvedName = (sub.source === 'direct' && cp?.full_name && !cp.full_name.includes('@'))
+        ? cp.full_name
+        : sub.candidate_name;
+
       return {
         id: sub.id,
         demandId,
@@ -107,7 +113,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
         source: (sub.source as 'supplier' | 'direct') ?? 'supplier',
         status: sub.status as SubmissionStatus,
         submittedAt: sub.submitted_at,
-        candidateName: sub.candidate_name,
+        candidateName: resolvedName,
         candidateEmail: sub.candidate_email,
         candidatePhone: sc?.phone ?? null,
         candidateHeadline,

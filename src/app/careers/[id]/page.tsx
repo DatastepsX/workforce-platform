@@ -28,7 +28,7 @@ export default async function CareerDemandPage({ params }: { params: Promise<{ i
 
   if (!data) notFound();
   const demand = data as Demand;
-  const isActive = ['sourcing','screening','interview'].includes(demand.status);
+  const isActive = ['sourcing','screening'].includes(demand.status);
 
   if (!isActive) {
     return (

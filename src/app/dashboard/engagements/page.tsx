@@ -25,8 +25,8 @@ export default async function EngagementsPage() {
     <div className="px-8 py-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[34px] font-bold tracking-tight text-black leading-tight">Engagements</h1>
-          <p className="text-[15px] text-[#8E8E93] mt-0.5">All commissioned candidates across demands</p>
+          <h1 className="text-[34px] font-bold tracking-tight text-black leading-tight">Awards</h1>
+          <p className="text-[15px] text-[#8E8E93] mt-0.5">All awarded candidates across demands</p>
         </div>
         {engagements.length > 0 && (
           <span className="text-[13px] font-semibold text-[#8E8E93]">
@@ -42,8 +42,8 @@ export default async function EngagementsPage() {
               <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
             </svg>
           </div>
-          <p className="text-[17px] font-semibold text-black mb-1">No engagements yet</p>
-          <p className="text-[14px] text-[#8E8E93] mb-5">Commission a candidate from a demand to create your first engagement.</p>
+          <p className="text-[17px] font-semibold text-black mb-1">No awards yet</p>
+          <p className="text-[14px] text-[#8E8E93] mb-5">Award a candidate from a demand submission to create the first award.</p>
           <Link href="/dashboard/demands" className="inline-block px-5 py-2.5 rounded-[10px] text-white text-[14px] font-semibold" style={{ backgroundColor: '#007AFF' }}>
             Go to Demands →
           </Link>

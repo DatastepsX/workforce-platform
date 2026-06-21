@@ -171,7 +171,7 @@ export function Sidebar({ displayName, initial, role, canSeeDemands, newDemandsC
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
               </svg>
-              <span className="flex-1">Engagements</span>
+              <span className="flex-1">Awards</span>
               {newEngagementsCount > 0 && (
                 <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
                   {newEngagementsCount > 99 ? '99+' : newEngagementsCount}

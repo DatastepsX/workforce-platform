@@ -131,7 +131,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
             <p className="text-[14px] font-semibold text-[#1C7B3A]">Position Filled</p>
             <p className="text-[13px] text-[#3C3C43]">
               <span className="font-semibold">{engagements[0].candidate_name}</span>
-              {' '}has been commissioned
+              {' '}has been awarded
               {engagements[0].start_date ? ` · Starting ${fmtDate(engagements[0].start_date)}` : ''}
             </p>
           </div>
@@ -139,7 +139,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
             href={`/dashboard/engagements/${engagements[0].id}`}
             className="text-[13px] font-semibold text-[#007AFF] hover:underline whitespace-nowrap flex-shrink-0"
           >
-            View Engagement →
+            View Award →
           </Link>
         </div>
       )}

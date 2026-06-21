@@ -32,10 +32,10 @@ export const STATUS_COLORS: Record<DemandStatus, string> = {
   rejected:         '#FF3B30',
 };
 
-// The 7 visible phases shown in the stepper (in order)
+// Phases shown in the stepper (interview happens at submission level, not demand)
 export const PHASE_ORDER: DemandStatus[] = [
   'draft', 'pending_review', 'pending_approval',
-  'sourcing', 'screening', 'interview',
+  'sourcing', 'screening',
   'award', 'contracting', 'filled',
 ];
 
@@ -45,14 +45,24 @@ export const PHASE_LABELS: Partial<Record<DemandStatus, string>> = {
   pending_approval: 'Approval',
   sourcing:         'Sourcing',
   screening:        'Screening',
-  interview:        'Interview',
   award:            'Award',
   contracting:      'Contracting',
   filled:           'Filled',
 };
 
+// Next-action owner per status (for ProcessPanel "Next action by" line)
+export const STATUS_NEXT_ACTOR: Partial<Record<DemandStatus, string>> = {
+  draft:            'Hiring Manager',
+  pending_review:   'MSP Recruiter',
+  pending_approval: 'Approver',
+  sourcing:         'MSP Recruiter',
+  screening:        'MSP Recruiter',
+  award:            'Approver',
+  contracting:      'MSP Recruiter',
+};
+
 export const TERMINAL_STATUSES: DemandStatus[] = ['filled', 'cancelled', 'rejected'];
-export const ACTIVE_SOURCING_STATUSES: DemandStatus[] = ['sourcing', 'screening', 'interview'];
+export const ACTIVE_SOURCING_STATUSES: DemandStatus[] = ['sourcing', 'screening'];
 
 // ── Transition definitions ────────────────────────────────────────────────────
 
@@ -202,11 +212,12 @@ function allTransitions(
     case 'screening':
       return [
         {
-          action: 'START_INTERVIEWS',
-          label: 'Move to Interview',
-          toStatus: 'interview',
+          action: 'AWARD_CANDIDATE',
+          label: 'Award Candidate',
+          toStatus: 'award',
+          toApprovalLevel: config.award_approval_levels > 0 ? 1 : null,
           allowedRoles: ['recruiter', 'admin', 'hiring_manager'],
-          description: 'Shortlist complete — start interviews',
+          description: 'Candidate selected — start award & approval process',
         },
         {
           action: 'BACK_TO_SOURCING',
@@ -214,26 +225,6 @@ function allTransitions(
           toStatus: 'sourcing',
           allowedRoles: ['recruiter', 'admin'],
           description: 'Need more candidates — reopen to suppliers',
-        },
-        ...universalDanger,
-      ];
-
-    case 'interview':
-      return [
-        {
-          action: 'SELECT_CANDIDATE',
-          label: 'Select Candidate',
-          toStatus: 'award',
-          toApprovalLevel: config.award_approval_levels > 0 ? 1 : null,
-          allowedRoles: ['hiring_manager', 'admin', 'recruiter'],
-          description: 'Candidate chosen — start award process',
-        },
-        {
-          action: 'BACK_TO_SCREENING',
-          label: 'Back to Screening',
-          toStatus: 'screening',
-          allowedRoles: ['recruiter', 'admin'],
-          description: 'No suitable candidate — re-evaluate shortlist',
         },
         ...universalDanger,
       ];
@@ -307,4 +298,12 @@ export function isActive(status: DemandStatus): boolean {
 // Which statuses count as "publicly open" for the career portal
 export function isPubliclyVisible(status: DemandStatus): boolean {
   return ACTIVE_SOURCING_STATUSES.includes(status);
+}
+
+// Human-readable label for next actor on a demand (for ProcessPanel)
+export function getNextActorLabel(status: DemandStatus, config: TenantConfig): string | null {
+  if (status === 'pending_review') return config.demand_msp_review ? 'MSP Recruiter' : null;
+  if (status === 'pending_approval') return `Approver (L${config.demand_approval_levels})`;
+  if (status === 'award') return config.award_approval_levels > 0 ? `Approver (L${config.award_approval_levels})` : 'MSP Recruiter';
+  return STATUS_NEXT_ACTOR[status] ?? null;
 }

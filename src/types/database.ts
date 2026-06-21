@@ -214,7 +214,7 @@ export interface SocialPost {
   updated_at: string;
 }
 
-export type NotificationType = 'new_submission' | 'submission_status' | 'engagement_created' | 'demand_received' | 'demand_created' | 'candidate_created' | 'supplier_created';
+export type NotificationType = 'new_submission' | 'submission_status' | 'engagement_created' | 'demand_received' | 'demand_created' | 'candidate_created' | 'supplier_created' | 'demand_pending_approval';
 
 export interface Notification {
   id: string;

@@ -181,6 +181,19 @@ export async function submitCandidates(
     .eq('demand_id', demandId)
     .eq('supplier_id', supplierId);
 
+  // Log supplier submission to process_history
+  try {
+    const adminForLog = createAdminClient();
+    const { data: supplierForLog } = await adminForLog.from('suppliers').select('company_name').eq('id', supplierId).single();
+    await adminForLog.from('process_history').insert({
+      demand_id:  demandId,
+      to_status:  'sourcing',
+      action:     'CANDIDATES_SUBMITTED',
+      actor_role: 'supplier',
+      notes:      `${supplierForLog?.company_name ?? 'Supplier'} submitted ${newCandidates.length} candidate${newCandidates.length > 1 ? 's' : ''}`,
+    });
+  } catch { /* non-blocking */ }
+
   // Email + in-app notifications
   try {
     const notifyAdmin = createAdminClient();
@@ -227,16 +240,44 @@ export async function submitCandidates(
 
 // ── Recruiter: update submission status ───────────────────────────────────────
 
+const SUBMISSION_STATUS_ACTIONS: Partial<Record<SubmissionStatus, string>> = {
+  shortlisted: 'SUBMISSION_SHORTLISTED',
+  interview:   'SUBMISSION_INTERVIEW',
+  rejected:    'SUBMISSION_REJECTED',
+  hired:       'SUBMISSION_HIRED',
+  offer:       'SUBMISSION_OFFER',
+};
+
 export async function updateSubmissionStatus(
   id: string,
   status: SubmissionStatus,
   demandId: string,
 ) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   const { error } = await supabase
     .from('candidate_submissions').update({ status }).eq('id', id);
   if (error) throw new Error(error.message);
   revalidatePath(`/dashboard/demands/${demandId}/submissions`);
+
+  // Log to process_history for demand-level audit trail
+  const action = SUBMISSION_STATUS_ACTIONS[status];
+  if (action && user) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const { data: sub } = await supabase.from('candidate_submissions').select('candidate_name').eq('id', id).single();
+    try {
+      const admin = createAdminClient();
+      await admin.from('process_history').insert({
+        demand_id:  demandId,
+        to_status:  status,
+        action,
+        actor_id:   user.id,
+        actor_role: profile?.role ?? null,
+        notes:      sub?.candidate_name ? `${sub.candidate_name}` : null,
+      });
+    } catch { /* non-blocking */ }
+  }
 
   // Email notification for key status changes
   try {

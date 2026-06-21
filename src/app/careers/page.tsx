@@ -13,7 +13,7 @@ export default async function CareersPage() {
   const { data } = await supabase
     .from('demands')
     .select('*')
-    .in('status', ['sourcing', 'screening', 'interview'])
+    .in('status', ['sourcing', 'screening'])
     .order('created_at', { ascending: false });
 
   const demands = (data ?? []) as Demand[];

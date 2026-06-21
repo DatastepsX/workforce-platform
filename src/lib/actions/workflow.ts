@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getTransitions } from '@/lib/workflow';
 import type { DemandStatus, UserRole, TenantConfig } from '@/types/database';
+import { createNotifications } from './notifications';
 
 async function getDefaultConfig(admin: ReturnType<typeof createAdminClient>): Promise<TenantConfig> {
   const { data } = await admin
@@ -73,6 +74,24 @@ export async function transitionDemandStatus(
     actor_role: role,
     notes: notes?.trim() || null,
   });
+
+  // Notify approvers when demand reaches pending_approval
+  if (transition.toStatus === 'pending_approval') {
+    const [{ data: pendingDemand }, { data: approvers }] = await Promise.all([
+      admin.from('demands').select('title').eq('id', demandId).single(),
+      admin.from('profiles').select('id').in('role', ['admin', 'hiring_manager']),
+    ]);
+    if (approvers?.length && pendingDemand) {
+      await createNotifications({
+        userIds: approvers.map((p: { id: string }) => p.id),
+        type: 'demand_pending_approval',
+        title: 'Demand awaiting approval',
+        body: (pendingDemand as { title: string }).title ?? 'A demand requires your approval',
+        relatedId: demandId,
+        relatedType: 'demand',
+      });
+    }
+  }
 
   revalidatePath(`/dashboard/demands/${demandId}`);
   revalidatePath('/dashboard/demands');
