@@ -47,11 +47,11 @@ export default async function DemandDetailPage({ params }: PageProps) {
 
   const demand = demandData as Demand;
   const role = (profileData?.role ?? 'candidate') as UserRole;
-  const canEdit = demand.created_by === user.id || ['recruiter', 'admin'].includes(role);
+  const canEdit = demand.created_by === user.id || ['super_admin', 'recruiter', 'admin'].includes(role);
   // Hiring manager can send to suppliers for their own demands
-  const canSendToSuppliers = ['recruiter', 'admin'].includes(role) ||
+  const canSendToSuppliers = ['super_admin', 'recruiter', 'admin'].includes(role) ||
     (role === 'hiring_manager' && demand.created_by === user.id);
-  const canViewSubmissions = ['recruiter', 'admin', 'hiring_manager'].includes(role);
+  const canViewSubmissions = ['super_admin', 'recruiter', 'admin', 'hiring_manager'].includes(role);
 
   // Fetch creator profile separately (created_by → auth.users, no direct FK to profiles)
   const { data: creatorProfile } = await supabase
@@ -94,7 +94,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
   // Fetch process history + tenant config for ProcessPanel
   let processHistory: ProcessHistoryEntry[] = [];
   let tenantConfig: TenantConfig | null = null;
-  if (['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role)) {
+  if (['super_admin', 'admin', 'recruiter', 'hiring_manager', 'procurement', 'finance'].includes(role)) {
     [processHistory, tenantConfig] = await Promise.all([
       getDemandHistory(id) as Promise<ProcessHistoryEntry[]>,
       getTenantConfig(demand.tenant_id),
@@ -160,7 +160,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
       )}
 
       {/* Process Panel */}
-      {['admin', 'recruiter', 'hiring_manager'].includes(role) && tenantConfig && (
+      {['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role) && tenantConfig && (
         <ProcessPanel
           demandId={id}
           status={demand.status}
@@ -202,7 +202,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
               >
                 Edit
               </Link>
-              {role === 'admin' && (
+              {['admin', 'super_admin'].includes(role) && (
                 <DeleteButton
                   action={deleteDemand}
                   id={id}

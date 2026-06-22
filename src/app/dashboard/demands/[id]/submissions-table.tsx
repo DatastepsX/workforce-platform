@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { CandidateSubmission, SubmissionStatus, SubmissionInterview, UserRole } from '@/types/database';
 import { SubmissionsTableClient, type SubmissionRow } from './submissions-table-client';
 
@@ -38,8 +39,9 @@ interface Props {
 
 export async function SubmissionsTable({ demandId, demandSkills, demandTitle, demandStartDate, demandEndDate, contractType, role }: Props) {
   const supabase = await createClient();
+  const admin = createAdminClient();
 
-  const { data: rawSubs } = await supabase
+  const { data: rawSubs } = await admin
     .from('candidate_submissions')
     .select('*, supplier_candidates(skills, headline, phone, notes, hourly_rate_min, hourly_rate_max, currency), candidate_profiles!candidate_profile_id(skills, headline, hourly_rate_min, hourly_rate_max, currency)')
     .eq('demand_id', demandId)
@@ -63,11 +65,11 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
   const submissionIds = rawSubs.map(s => s.id);
 
   const [{ data: suppliers }, { data: profilesData }, { data: interviewsData }] = await Promise.all([
-    supabase.from('suppliers').select('id, company_name, email').in('id', supplierIds),
+    admin.from('suppliers').select('id, company_name, email').in('id', supplierIds),
     directProfileIds.length > 0
-      ? supabase.from('profiles').select('id, full_name').in('id', directProfileIds)
+      ? admin.from('profiles').select('id, full_name').in('id', directProfileIds)
       : Promise.resolve({ data: [] }),
-    supabase
+    admin
       .from('submission_interviews')
       .select('*')
       .in('submission_id', submissionIds)
