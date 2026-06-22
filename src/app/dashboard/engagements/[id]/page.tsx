@@ -59,7 +59,7 @@ export default async function EngagementDetailPage({ params }: PageProps) {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin', 'recruiter', 'hiring_manager'].includes(profile?.role ?? '')) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(profile?.role ?? '')) redirect('/dashboard');
 
   const { data: engData } = await supabase
     .from('engagements')

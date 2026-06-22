@@ -26,7 +26,7 @@ export default async function SocialMediaPage() {
     .single();
 
   const role = (profileData?.role ?? 'candidate') as UserRole;
-  if (!['admin', 'recruiter'].includes(role)) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter'].includes(role)) redirect('/dashboard');
 
   const { data } = await supabase
     .from('social_posts')

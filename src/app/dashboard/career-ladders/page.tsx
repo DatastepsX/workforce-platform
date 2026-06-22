@@ -10,7 +10,7 @@ export default async function CareerLaddersPage() {
   if (!user) redirect('/login');
 
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
 
   const { data: laddersData } = await supabase
     .from('career_ladders')

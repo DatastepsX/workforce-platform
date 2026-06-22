@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { EngagementsClient } from './engagements-client';
@@ -12,9 +13,10 @@ export default async function EngagementsPage() {
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single();
   const role = profile?.role ?? '';
-  if (!['admin', 'recruiter', 'hiring_manager'].includes(role)) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role)) redirect('/dashboard');
 
-  const { data } = await supabase
+  const admin = createAdminClient();
+  const { data } = await admin
     .from('engagements')
     .select('*')
     .order('updated_at', { ascending: false });

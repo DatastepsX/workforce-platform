@@ -11,7 +11,7 @@ export default async function NewCareerLadderPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
 
   return (
     <div className="px-8 py-10 max-w-xl">

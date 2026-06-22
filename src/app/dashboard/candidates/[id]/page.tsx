@@ -36,7 +36,7 @@ export default async function CandidateDetailPage({ params }: PageProps) {
   if (!user) redirect('/login');
 
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
 
   const [{ data: cpData }, { data: profileData }, { data: ratingsData }] = await Promise.all([
     supabase.from('candidate_profiles').select('*').eq('id', id).single(),
