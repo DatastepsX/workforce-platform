@@ -66,6 +66,7 @@ export async function transitionDemandStatus(
 
   if (updateError) return { error: updateError.message };
 
+  const { data: actorProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single();
   await admin.from('process_history').insert({
     demand_id: demandId,
     from_status: currentStatus,
@@ -73,6 +74,9 @@ export async function transitionDemandStatus(
     action,
     actor_id: user.id,
     actor_role: role,
+    actor_name: (actorProfile as { full_name: string | null; email: string | null } | null)?.full_name
+      || (actorProfile as { full_name: string | null; email: string | null } | null)?.email
+      || null,
     notes: notes?.trim() || null,
   });
 
@@ -105,13 +109,29 @@ export async function getDemandHistory(demandId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data } = await supabase
+  const admin = createAdminClient();
+  const { data: entries } = await admin
     .from('process_history')
     .select('*')
     .eq('demand_id', demandId)
     .order('created_at', { ascending: false });
 
-  return data ?? [];
+  if (!entries?.length) return [];
+
+  // Enrich with actor names from profiles
+  const actorIds = Array.from(new Set(entries.map((e: { actor_id: string | null }) => e.actor_id).filter(Boolean))) as string[];
+  const nameMap: Record<string, string> = {};
+  if (actorIds.length) {
+    const { data: profiles } = await admin.from('profiles').select('id, full_name, email').in('id', actorIds);
+    for (const p of (profiles ?? []) as { id: string; full_name: string | null; email: string | null }[]) {
+      nameMap[p.id] = p.full_name || p.email || p.id;
+    }
+  }
+
+  return entries.map((e: { actor_id: string | null }) => ({
+    ...e,
+    actor_name: e.actor_id ? (nameMap[e.actor_id] ?? null) : null,
+  }));
 }
 
 export async function getTenantConfig(tenantId?: string | null): Promise<TenantConfig | null> {

@@ -98,6 +98,20 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
       .eq('id', input.demandId),
   ]);
 
+  // Log to process history
+  try {
+    const { data: actorProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+    await createAdminClient().from('process_history').insert({
+      demand_id: input.demandId,
+      to_status: awardStatus,
+      action: 'ENGAGEMENT_CREATED',
+      actor_id: user.id,
+      actor_role: actorProfile?.role ?? null,
+      actor_name: actorProfile?.full_name || actorProfile?.email || null,
+      notes: `${input.candidateName}${input.supplierName ? ` via ${input.supplierName}` : ''}`,
+    });
+  } catch { /* non-blocking */ }
+
   // Notify supplier (email + in-app)
   if (input.supplierId && input.supplierEmail && input.supplierName) {
     try {

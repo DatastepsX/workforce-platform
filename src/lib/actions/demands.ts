@@ -61,6 +61,22 @@ export async function createDemand(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  // Log demand creation to process history
+  try {
+    const adminDb = createAdminClient();
+    const { data: creator } = await adminDb.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+    await adminDb.from('process_history').insert({
+      demand_id: data.id,
+      from_status: null,
+      to_status: 'draft',
+      action: 'DEMAND_CREATED',
+      actor_id: user.id,
+      actor_role: creator?.role ?? null,
+      actor_name: creator?.full_name || creator?.email || null,
+      notes: null,
+    });
+  } catch { /* non-blocking */ }
+
   // Notify all recruiters/admins (except the creator) about new demand
   try {
     const adminDb = createAdminClient();

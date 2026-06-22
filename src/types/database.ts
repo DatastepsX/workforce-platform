@@ -101,6 +101,7 @@ export interface ProcessHistoryEntry {
   action: string;
   actor_id: string | null;
   actor_role: string | null;
+  actor_name: string | null;
   notes: string | null;
   created_at: string;
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { SubmissionInterview } from '@/types/database';
 
 export async function addInterview(formData: FormData) {
@@ -32,6 +33,22 @@ export async function addInterview(formData: FormData) {
     .single();
 
   if (error) return { error: error.message };
+
+  // Log to process history
+  try {
+    const admin = createAdminClient();
+    const { data: actorProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+    const { data: sub } = await admin.from('candidate_submissions').select('candidate_name').eq('id', submissionId).single();
+    await admin.from('process_history').insert({
+      demand_id: demandId,
+      to_status: 'screening',
+      action: 'INTERVIEW_LOGGED',
+      actor_id: user.id,
+      actor_role: actorProfile?.role ?? null,
+      actor_name: actorProfile?.full_name || actorProfile?.email || null,
+      notes: sub?.candidate_name ? `Interview logged for ${sub.candidate_name}` : 'Interview logged',
+    });
+  } catch { /* non-blocking */ }
 
   revalidatePath(`/dashboard/demands/${demandId}`);
   return { success: true, interview: data as SubmissionInterview };

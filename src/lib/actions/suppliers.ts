@@ -174,6 +174,22 @@ export async function sendToSuppliers(
 
   if (error) throw new Error(error.message);
 
+  // Log to process history
+  try {
+    const { data: senderProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+    const { data: sentSuppliers } = await admin.from('suppliers').select('company_name').in('id', supplierIds);
+    const supplierNames = (sentSuppliers ?? []).map((s: { company_name: string }) => s.company_name).join(', ');
+    await admin.from('process_history').insert({
+      demand_id: demandId,
+      to_status: 'sourcing',
+      action: 'DEMAND_SENT_TO_SUPPLIERS',
+      actor_id: user.id,
+      actor_role: senderProfile?.role ?? null,
+      actor_name: senderProfile?.full_name || senderProfile?.email || null,
+      notes: `Sent to: ${supplierNames}`,
+    });
+  } catch { /* non-blocking */ }
+
   // Send notification emails to each supplier
   try {
     const { data: demand } = await admin.from('demands').select('title').eq('id', demandId).single();

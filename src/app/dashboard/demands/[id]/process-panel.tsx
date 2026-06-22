@@ -15,31 +15,88 @@ interface Props {
 }
 
 const HISTORY_ACTION_LABELS: Record<string, string> = {
-  SUBMIT:                'Submitted for review',
-  APPROVE_REVIEW:        'Approved by MSP',
-  RETURN:                'Returned for revision',
-  REJECT:                'Rejected',
-  APPROVE:               'Approved',
-  START_SCREENING:       'Screening started',
-  AWARD_CANDIDATE:       'Candidate awarded',
-  BACK_TO_SOURCING:      'Returned to sourcing',
-  APPROVE_AWARD:         'Award approved',
-  CONFIRM_PO:            'PO confirmed — Filled',
-  PUT_ON_HOLD:           'Put on hold',
-  RESUME:                'Resumed',
-  CANCEL:                'Cancelled',
-  CANDIDATES_SUBMITTED:  'Candidates submitted',
-  SUBMISSION_SHORTLISTED:'Candidate shortlisted',
-  SUBMISSION_INTERVIEW:  'Interview scheduled',
-  SUBMISSION_REJECTED:   'Candidate rejected',
-  SUBMISSION_HIRED:      'Candidate hired',
+  DEMAND_CREATED:           'Demand created',
+  DEMAND_SENT_TO_SUPPLIERS: 'Sent to suppliers',
+  SUBMIT:                   'Submitted for review',
+  APPROVE_REVIEW:           'Approved by MSP',
+  RETURN:                   'Returned for revision',
+  REJECT:                   'Rejected',
+  APPROVE:                  'Approved',
+  START_SCREENING:          'Screening started',
+  AWARD_CANDIDATE:          'Candidate awarded',
+  BACK_TO_SOURCING:         'Back to sourcing',
+  APPROVE_AWARD:            'Award approved',
+  CONFIRM_PO:               'PO confirmed — Filled',
+  PUT_ON_HOLD:              'Put on hold',
+  RESUME:                   'Resumed',
+  CANCEL:                   'Cancelled',
+  ENGAGEMENT_CREATED:       'Award created',
+  INTERVIEW_LOGGED:         'Interview logged',
+  INTERVIEW_UPDATED:        'Interview updated',
+  CANDIDATES_SUBMITTED:     'Candidates submitted',
+  SUBMISSION_SHORTLISTED:   'Candidate shortlisted',
+  SUBMISSION_INTERVIEW:     'Interview scheduled',
+  SUBMISSION_OFFER:         'Offer made',
+  SUBMISSION_REJECTED:      'Candidate rejected',
+  SUBMISSION_HIRED:         'Candidate hired',
 };
 
 const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Platform Admin',
   admin: 'Admin',
   recruiter: 'MSP Recruiter',
   hiring_manager: 'Hiring Manager',
+  procurement: 'Procurement',
+  finance: 'Finance',
   supplier: 'Supplier',
+};
+
+const ACTION_ICONS: Record<string, string> = {
+  DEMAND_CREATED:           '✦',
+  DEMAND_SENT_TO_SUPPLIERS: '→',
+  SUBMIT:                   '↑',
+  APPROVE_REVIEW:           '✓',
+  APPROVE:                  '✓',
+  APPROVE_AWARD:            '✓',
+  CONFIRM_PO:               '✓',
+  RETURN:                   '↩',
+  REJECT:                   '✕',
+  CANCEL:                   '✕',
+  PUT_ON_HOLD:              '⏸',
+  RESUME:                   '▶',
+  ENGAGEMENT_CREATED:       '★',
+  INTERVIEW_LOGGED:         '◈',
+  INTERVIEW_UPDATED:        '◈',
+  CANDIDATES_SUBMITTED:     '↓',
+  SUBMISSION_SHORTLISTED:   '◉',
+  SUBMISSION_INTERVIEW:     '◈',
+  SUBMISSION_OFFER:         '◎',
+  SUBMISSION_REJECTED:      '✕',
+  SUBMISSION_HIRED:         '★',
+};
+
+const ACTION_COLORS: Record<string, string> = {
+  DEMAND_CREATED:           '#8E8E93',
+  DEMAND_SENT_TO_SUPPLIERS: '#007AFF',
+  SUBMIT:                   '#007AFF',
+  APPROVE_REVIEW:           '#34C759',
+  APPROVE:                  '#34C759',
+  APPROVE_AWARD:            '#34C759',
+  CONFIRM_PO:               '#34C759',
+  RETURN:                   '#FF9500',
+  REJECT:                   '#FF3B30',
+  CANCEL:                   '#FF3B30',
+  PUT_ON_HOLD:              '#FF9500',
+  RESUME:                   '#34C759',
+  ENGAGEMENT_CREATED:       '#34C759',
+  INTERVIEW_LOGGED:         '#5856D6',
+  INTERVIEW_UPDATED:        '#5856D6',
+  CANDIDATES_SUBMITTED:     '#007AFF',
+  SUBMISSION_SHORTLISTED:   '#007AFF',
+  SUBMISSION_INTERVIEW:     '#5856D6',
+  SUBMISSION_OFFER:         '#FF9500',
+  SUBMISSION_REJECTED:      '#FF3B30',
+  SUBMISSION_HIRED:         '#34C759',
 };
 
 function fmtRelative(iso: string) {
@@ -313,28 +370,46 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
             </svg>
           </button>
           {showHistory && (
-            <div className="px-4 pb-3 space-y-2.5">
-              {history.map(entry => (
-                <div key={entry.id} className="flex items-start gap-2.5">
-                  <div className="w-1 h-1 rounded-full bg-[#C7C7CC] mt-[5px] flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-[12px] font-semibold text-black">
-                        {HISTORY_ACTION_LABELS[entry.action] ?? entry.action}
-                      </span>
-                      {entry.actor_role && (
-                        <span className="text-[10px] text-[#8E8E93]">
-                          · {ROLE_LABELS[entry.actor_role] ?? entry.actor_role}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-[#C7C7CC] ml-auto">{fmtRelative(entry.created_at)}</span>
+            <div className="px-4 pb-4 space-y-0">
+              {history.map((entry, idx) => {
+                const color = ACTION_COLORS[entry.action] ?? '#8E8E93';
+                const icon = ACTION_ICONS[entry.action] ?? '·';
+                const isLast = idx === history.length - 1;
+                return (
+                  <div key={entry.id} className="flex items-stretch gap-3">
+                    {/* Timeline line + dot */}
+                    <div className="flex flex-col items-center flex-shrink-0 w-5">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5"
+                        style={{ backgroundColor: color }}
+                      >
+                        {icon}
+                      </div>
+                      {!isLast && <div className="w-px flex-1 bg-[#E5E5EA] mt-1 mb-0" />}
                     </div>
-                    {entry.notes && (
-                      <p className="text-[11px] text-[#8E8E93] mt-0.5 italic">{entry.notes}</p>
-                    )}
+                    {/* Content */}
+                    <div className={`flex-1 min-w-0 pb-3 ${isLast ? '' : ''}`}>
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-[12px] font-semibold text-black">
+                          {HISTORY_ACTION_LABELS[entry.action] ?? entry.action}
+                        </span>
+                        <span className="text-[10px] text-[#C7C7CC] ml-auto flex-shrink-0">{fmtRelative(entry.created_at)}</span>
+                      </div>
+                      {(entry.actor_name || entry.actor_role) && (
+                        <p className="text-[11px] text-[#8E8E93] mt-0.5">
+                          {entry.actor_name ?? ''}
+                          {entry.actor_role && (
+                            <span className="text-[#C7C7CC]"> · {ROLE_LABELS[entry.actor_role] ?? entry.actor_role}</span>
+                          )}
+                        </p>
+                      )}
+                      {entry.notes && (
+                        <p className="text-[11px] text-[#3C3C43] mt-0.5 bg-[#F2F2F7] rounded-lg px-2 py-1 inline-block">{entry.notes}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
