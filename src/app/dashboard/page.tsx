@@ -12,6 +12,7 @@ function getGreeting() {
 }
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
+  super_admin: 'Full platform access across all clients and configurations.',
   admin: 'You have full access to all platform features.',
   hiring_manager: 'Create and track your open positions.',
   recruiter: 'Manage all demands and candidates.',
@@ -55,7 +56,7 @@ export default async function DashboardPage() {
 
   // Fetch demand stats for relevant roles
   let demandStats: { open: number; draft: number; total: number } | null = null;
-  if (['admin', 'hiring_manager', 'recruiter'].includes(role)) {
+  if (['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role)) {
     const { data: demands } = await supabase
       .from('demands')
       .select('status');
@@ -71,7 +72,7 @@ export default async function DashboardPage() {
 
   // Fetch engagement stats for relevant roles
   let engagementStats: { total: number; active: number } | null = null;
-  if (['admin', 'hiring_manager', 'recruiter'].includes(role)) {
+  if (['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role)) {
     const { data: engs } = await supabase.from('engagements').select('status');
     if (engs) {
       const e = engs as Pick<Engagement, 'status'>[];
@@ -134,7 +135,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Quick actions */}
-      {['admin', 'hiring_manager', 'recruiter'].includes(role) && (
+      {['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role) && (
         <div>
           <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2 ml-1">
             Quick Actions
