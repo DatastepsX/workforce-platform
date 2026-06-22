@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { updateDemand } from '@/lib/actions/demands';
+import { DemandForm } from '../../demand-form';
 import type { Demand } from '@/types/database';
 
 interface PageProps {
@@ -31,148 +32,27 @@ export default async function EditDemandPage({ params }: PageProps) {
         <h1 className="text-[34px] font-bold tracking-tight text-black leading-tight">Edit Demand</h1>
         <p className="text-[15px] text-[#8E8E93] mt-0.5">{demand.title}</p>
       </div>
-
-      <form action={updateDemand} className="space-y-5">
-        <input type="hidden" name="id" value={demand.id} />
-
-        <Section label="Position">
-          <Field label="Job Title" required>
-            <input name="title" required defaultValue={demand.title} className={inputCls} />
-          </Field>
-          <Field label="Contract Type">
-            <select name="contract_type" defaultValue={demand.contract_type} className={inputCls}>
-              <option value="permanent">Permanent</option>
-              <option value="freelance">Freelance</option>
-              <option value="contractor">Contractor</option>
-              <option value="internship">Internship</option>
-            </select>
-          </Field>
-          <Field label="Priority">
-            <select name="priority" defaultValue={demand.priority} className={inputCls}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </Field>
-        </Section>
-
-        <Section label="Description">
-          <Field label="Job Description">
-            <textarea name="description" rows={4} defaultValue={demand.description ?? ''} className={inputCls + ' resize-none'} />
-          </Field>
-        </Section>
-
-        <Section label="Location">
-          <Field label="City / Country">
-            <input name="location" defaultValue={demand.location ?? ''} placeholder="e.g. Berlin, Germany" className={inputCls} />
-          </Field>
-          <Field label="Remote">
-            <select name="remote_allowed" defaultValue={String(demand.remote_allowed)} className={inputCls}>
-              <option value="false">On-site only</option>
-              <option value="true">Remote allowed</option>
-            </select>
-          </Field>
-        </Section>
-
-        <Section label="Timeline">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Start Date">
-              <input name="start_date" type="date" defaultValue={demand.start_date ?? ''} className={inputCls} />
-            </Field>
-            <Field label="End Date">
-              <input name="end_date" type="date" defaultValue={demand.end_date ?? ''} className={inputCls} />
-            </Field>
-          </div>
-        </Section>
-
-        <Section label="Budget (€)">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Minimum">
-              <input name="budget_min" type="number" min="0" defaultValue={demand.budget_min ?? ''} placeholder="0" className={inputCls} />
-            </Field>
-            <Field label="Maximum">
-              <input name="budget_max" type="number" min="0" defaultValue={demand.budget_max ?? ''} placeholder="0" className={inputCls} />
-            </Field>
-          </div>
-        </Section>
-
-        <Section label="Requirements">
-          <Field label="Skills (comma-separated)">
-            <input name="skills" defaultValue={demand.skills.join(', ')} placeholder="e.g. React, TypeScript" className={inputCls} />
-          </Field>
-          <Field label="Years of Experience">
-            <input name="experience_years" type="number" min="0" max="30" defaultValue={demand.experience_years ?? ''} placeholder="3" className={inputCls} />
-          </Field>
-        </Section>
-
-        <Section label="Distribution Channels">
-          <p className="text-[13px] text-[#8E8E93] -mt-1">Choose how this demand reaches candidates.</p>
-          <div className="space-y-1">
-            <ChannelOption value="suppliers" label="Supplier Network" description="Send to your approved suppliers — they submit candidates on your behalf" defaultChecked={demand.channels.includes('suppliers')} />
-            <ChannelOption value="career_portal" label="Career Portal" description="Post publicly on /careers — candidates apply directly without an agency" defaultChecked={demand.channels.includes('career_portal')} />
-          </div>
-        </Section>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            className="px-6 py-3 rounded-[12px] text-white text-[15px] font-semibold hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: '#007AFF', boxShadow: '0 4px 12px rgba(0,122,255,0.28)' }}
-          >
-            Save Changes
-          </button>
-          <a
-            href={`/dashboard/demands/${id}`}
-            className="px-6 py-3 rounded-[12px] text-[15px] font-medium text-[#3C3C43] bg-white hover:bg-[#F2F2F7] transition-colors shadow-[0_1px_4px_rgba(0,0,0,0.06)]"
-          >
-            Cancel
-          </a>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-const inputCls = 'w-full bg-[#F2F2F7] rounded-xl px-4 py-3.5 text-[15px] text-black placeholder:text-[#8E8E93] outline-none border-[1.5px] border-transparent focus:border-[#007AFF] focus:bg-white transition-colors';
-
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] space-y-4">
-      <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px]">{label}</p>
-      {children}
-    </div>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-[13px] font-medium text-[#3C3C43]">
-        {label}{required && <span className="text-[#FF3B30] ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function ChannelOption({ value, label, description, defaultChecked }: {
-  value: string; label: string; description: string; defaultChecked?: boolean;
-}) {
-  return (
-    <label className="flex items-start gap-3 p-3.5 rounded-xl border border-[#E5E5EA] hover:border-[#007AFF]/40 hover:bg-[#007AFF]/4 transition-colors cursor-pointer">
-      <input
-        type="checkbox"
-        name="channels"
-        value={value}
-        defaultChecked={defaultChecked}
-        className="mt-0.5 w-4 h-4 flex-shrink-0"
-        style={{ accentColor: '#007AFF' }}
+      <DemandForm
+        action={updateDemand}
+        defaultValues={{
+          id: demand.id,
+          title: demand.title,
+          contract_type: demand.contract_type,
+          priority: demand.priority,
+          description: demand.description,
+          location: demand.location,
+          remote_allowed: demand.remote_allowed,
+          start_date: demand.start_date,
+          end_date: demand.end_date,
+          budget_min: demand.budget_min,
+          budget_max: demand.budget_max,
+          skills: demand.skills,
+          experience_years: demand.experience_years,
+          channels: demand.channels,
+        }}
+        submitLabel="Save Changes"
+        cancelHref={`/dashboard/demands/${id}`}
       />
-      <div>
-        <p className="text-[14px] font-semibold text-black leading-tight">{label}</p>
-        <p className="text-[12px] text-[#8E8E93] mt-0.5 leading-snug">{description}</p>
-      </div>
-    </label>
+    </div>
   );
 }

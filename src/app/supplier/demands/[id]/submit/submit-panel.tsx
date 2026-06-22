@@ -10,16 +10,26 @@ interface Props {
   demandId: string;
   candidates: SupplierCandidate[];
   submittedIds: string[];
+  contractType?: string;
 }
 
 const RATE_TYPES = [
   { value: 'daily',   label: '/ day' },
   { value: 'hourly',  label: '/ hour' },
   { value: 'monthly', label: '/ month' },
+  { value: 'annual',  label: '/ year' },
   { value: 'fixed',   label: 'fixed' },
 ];
 
-export function SubmitPanel({ demandId, candidates, submittedIds }: Props) {
+const CONTRACT_RATE_TYPE: Record<string, string> = {
+  permanent:   'annual',
+  contractor:  'daily',
+  freelance:   'hourly',
+  fixed_price: 'fixed',
+};
+
+export function SubmitPanel({ demandId, candidates, submittedIds, contractType }: Props) {
+  const defaultRateType = (contractType && CONTRACT_RATE_TYPE[contractType]) ?? 'daily';
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rates, setRates] = useState<Record<string, { amount: string; type: string }>>({});
   const [notes, setNotes] = useState('');
@@ -35,8 +45,8 @@ export function SubmitPanel({ demandId, candidates, submittedIds }: Props) {
       else next.add(id);
       return next;
     });
-    // Init rate entry when selecting
-    if (!rates[id]) setRates(prev => ({ ...prev, [id]: { amount: '', type: 'daily' } }));
+    // Init rate entry when selecting, defaulting to demand's contract type
+    if (!rates[id]) setRates(prev => ({ ...prev, [id]: { amount: '', type: defaultRateType } }));
   }
 
   function setRate(id: string, field: 'amount' | 'type', value: string) {

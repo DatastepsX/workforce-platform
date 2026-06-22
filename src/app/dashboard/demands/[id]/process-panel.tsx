@@ -281,6 +281,19 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
             {status === 'rejected' && 'This demand was rejected.'}
           </p>
         )}
+
+        {/* WFX-025: View Only indicator for non-terminal states where role has no actions */}
+        {!terminal && !activeAction && transitions.length === 0 && (
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
+            style={{ backgroundColor: '#8E8E9318', color: '#8E8E93' }}
+          >
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            View Only
+          </span>
+        )}
       </div>
 
       {/* History */}

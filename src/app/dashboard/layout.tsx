@@ -14,34 +14,39 @@ async function signOut() {
 
 async function switchToUser(formData: FormData) {
   'use server';
+  const { headers } = await import('next/headers');
   const userId = formData.get('userId') as string;
   const email = formData.get('email') as string;
   const role = formData.get('role') as string;
   if (!userId && !email) return;
 
-  // Try admin magic link first (works for all users)
+  const headersList = await headers();
+  const host = headersList.get('host') ?? 'workforce-platform-omega.vercel.app';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const origin = `${protocol}://${host}`;
+  const dest = role === 'supplier' ? '/supplier' : '/dashboard';
+
+  // Use admin magic link — redirects through /auth/callback which exchanges the
+  // PKCE code for a session without the user having to enter credentials.
   if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
       const admin = createAdminClient();
-      const targetEmail = email;
       const { data } = await admin.auth.admin.generateLink({
         type: 'magiclink',
-        email: targetEmail,
-        options: {
-          redirectTo: `${process.env.APP_URL ?? 'https://workforce-platform-omega.vercel.app'}${role === 'supplier' ? '/supplier' : '/dashboard'}`,
-        },
+        email,
+        options: { redirectTo: `${origin}/auth/callback?next=${dest}` },
       });
       if (data?.properties?.action_link) {
         redirect(data.properties.action_link);
       }
-    } catch { /* fall through to password */ }
+    } catch { /* fall through */ }
   }
 
-  // Fallback: password sign-in (works for known test accounts)
+  // Fallback: all test users share the password Test1234!
   const supabase = await createClient();
   await supabase.auth.signOut();
   await supabase.auth.signInWithPassword({ email, password: 'Test1234!' });
-  redirect(role === 'supplier' ? '/supplier' : '/dashboard');
+  redirect(dest);
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -51,17 +56,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name, email')
+    .select('role, full_name, email, tenant_id')
     .eq('id', user.id)
     .single();
 
-  const p = profile as Pick<Profile, 'role' | 'full_name' | 'email'> | null;
+  const p = profile as Pick<Profile, 'role' | 'full_name' | 'email' | 'tenant_id'> | null;
   const role = p?.role ?? 'candidate';
 
   if (role === 'supplier') redirect('/supplier');
   const displayName = p?.full_name || p?.email || user.email || '';
   const initial = displayName[0]?.toUpperCase() ?? '?';
-  const canSeeDemands = ['admin', 'hiring_manager', 'recruiter'].includes(role);
+  const canSeeDemands = ['super_admin', 'admin', 'hiring_manager', 'recruiter', 'procurement', 'finance'].includes(role);
 
   // Fetch all profiles for user switcher.
   // Migration 015 adds "profiles_select_all_authenticated" so every logged-in
@@ -69,6 +74,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profilesClient = process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createAdminClient()
     : supabase;
+
+  // Fetch current user's tenant name
+  let tenantName: string | null = null;
+  if (p?.tenant_id) {
+    const { data: tenantData } = await profilesClient
+      .from('tenants')
+      .select('name')
+      .eq('id', p.tenant_id)
+      .single();
+    tenantName = (tenantData as { name: string } | null)?.name ?? null;
+  }
+
   const [
     { data: allProfilesData },
     { data: supplierProfiles },
@@ -78,8 +95,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     { count: newSuppliersCount },
     { count: newEngagementsCount },
     { data: notificationsData },
+    { count: pendingApprovalCount },
   ] = await Promise.all([
-    profilesClient.from('profiles').select('id, role, full_name, email').order('role'),
+    profilesClient.from('profiles').select('id, role, full_name, email, tenant_id').order('role'),
     profilesClient.from('suppliers').select('profile_id, company_name').not('profile_id', 'is', null),
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'new_submission').is('read_at', null),
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'demand_created').is('read_at', null),
@@ -87,13 +105,39 @@ export default async function DashboardLayout({ children }: { children: React.Re
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'supplier_created').is('read_at', null),
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'engagement_created').is('read_at', null),
     supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
+    // Pending approval badge: super_admin/admin sees all, hiring_manager sees own demands
+    ['super_admin', 'admin', 'hiring_manager'].includes(role)
+      ? ['super_admin', 'admin'].includes(role)
+        ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval')
+        : supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval').eq('created_by', user.id)
+      : Promise.resolve({ count: 0 }),
   ]);
   const supplierNameMap = Object.fromEntries(
     ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
   );
 
   // For candidate-role users, look up candidate_profiles.full_name (where they actually set their name)
-  const allProfilesList = (allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[];
+  const allProfilesList = (allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email' | 'tenant_id'>[];
+
+  // Build tenant name + role label maps for user switcher
+  const allTenantIds = Array.from(new Set(allProfilesList.filter(p => p.tenant_id).map(p => p.tenant_id))) as string[];
+  let allTenantNameMap: Record<string, string> = {};
+  // tenantRoleLabelMap: "<tenant_id>:<role_key>" → configured label
+  let tenantRoleLabelMap: Record<string, string> = {};
+  if (allTenantIds.length > 0) {
+    const [{ data: allTenantsData }, { data: tenantRolesData }] = await Promise.all([
+      profilesClient.from('tenants').select('id, name').in('id', allTenantIds),
+      profilesClient.from('tenant_roles').select('tenant_id, role_key, label').in('tenant_id', allTenantIds),
+    ]);
+    allTenantNameMap = Object.fromEntries(
+      ((allTenantsData ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name])
+    );
+    tenantRoleLabelMap = Object.fromEntries(
+      ((tenantRolesData ?? []) as { tenant_id: string; role_key: string; label: string }[])
+        .map(r => [`${r.tenant_id}:${r.role_key}`, r.label])
+    );
+  }
+
   const candidateIds = allProfilesList.filter(p => p.role === 'candidate').map(p => p.id);
   let candidateProfileNameMap: Record<string, string> = {};
   if (candidateIds.length > 0) {
@@ -120,6 +164,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         : p.role === 'candidate' && candidateProfileNameMap[p.id]
         ? candidateProfileNameMap[p.id]
         : (p.full_name || p.email || p.id),
+      tenantName: p.tenant_id ? (allTenantNameMap[p.tenant_id] ?? null) : null,
+      configuredRoleLabel: p.tenant_id ? (tenantRoleLabelMap[`${p.tenant_id}:${p.role}`] ?? null) : null,
     }));
 
   return (
@@ -128,12 +174,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
         displayName={displayName}
         initial={initial}
         role={role}
+        tenantName={tenantName}
         canSeeDemands={canSeeDemands}
         newDemandsCount={newDemandsCount ?? 0}
         newSuppliersCount={newSuppliersCount ?? 0}
         newCandidatesCount={newCandidatesCount ?? 0}
         newSubmissionsCount={newSubmissionsCount ?? 0}
         newEngagementsCount={newEngagementsCount ?? 0}
+        pendingApprovalCount={pendingApprovalCount ?? 0}
         notifications={(notificationsData ?? []) as Notification[]}
         userId={user.id}
         signOut={signOut}

@@ -85,6 +85,7 @@ export function getTransitions(
   role: UserRole,
 ): TransitionDef[] {
   const all = allTransitions(status, approvalLevel, config);
+  if (role === 'super_admin') return all; // super_admin can take any action
   return all.filter(t => t.allowedRoles.includes(role));
 }
 
@@ -136,7 +137,7 @@ function allTransitions(
       return [
         {
           action: 'APPROVE_REVIEW',
-          label: config.demand_approval_levels > 0 ? 'Approve & Send for Approval' : 'Approve & Publish',
+          label: config.demand_approval_levels > 0 ? 'Review and Send for Approval' : 'Approve & Publish',
           toStatus,
           toApprovalLevel: toStatus === 'pending_approval' ? 1 : null,
           allowedRoles: ['recruiter', 'admin'],
@@ -167,27 +168,32 @@ function allTransitions(
       const isLastLevel = level >= config.demand_approval_levels;
       const nextStatus = isLastLevel ? 'sourcing' : 'pending_approval';
       const nextLevel = isLastLevel ? null : level + 1;
+      const approverRole = (config[`demand_approval_role_l${level}` as keyof TenantConfig] as string | null) ?? null;
+      const approveRoles: UserRole[] = ['admin', 'super_admin'];
+      if (approverRole && !approveRoles.includes(approverRole as UserRole)) {
+        approveRoles.push(approverRole as UserRole);
+      }
       return [
         {
           action: 'APPROVE',
           label: isLastLevel ? 'Approve & Publish' : `Approve (Level ${level} of ${config.demand_approval_levels})`,
           toStatus: nextStatus,
           toApprovalLevel: nextLevel,
-          allowedRoles: ['hiring_manager', 'admin', 'recruiter'],
+          allowedRoles: approveRoles,
           description: isLastLevel ? 'Final approval — demand goes live to suppliers' : 'Approve and forward to next approver',
         },
         {
           action: 'RETURN',
           label: 'Return for Revision',
           toStatus: 'draft',
-          allowedRoles: ['hiring_manager', 'admin', 'recruiter'],
+          allowedRoles: approveRoles,
           requiresNote: true,
         },
         {
           action: 'REJECT',
           label: 'Reject',
           toStatus: 'rejected',
-          allowedRoles: ['admin', 'recruiter'],
+          allowedRoles: ['admin', 'super_admin'],
           isDangerous: true,
           requiresNote: true,
         },
@@ -236,6 +242,11 @@ function allTransitions(
         ? (config.award_po_step ? 'contracting' : 'filled')
         : 'award';
       const nextLevel = isLastLevel ? null : level + 1;
+      const awardApproverRole = (config[`award_approval_role_l${level}` as keyof TenantConfig] as string | null) ?? null;
+      const awardApproveRoles: UserRole[] = ['admin', 'super_admin'];
+      if (awardApproverRole && !awardApproveRoles.includes(awardApproverRole as UserRole)) {
+        awardApproveRoles.push(awardApproverRole as UserRole);
+      }
       return [
         {
           action: 'APPROVE_AWARD',
@@ -244,7 +255,7 @@ function allTransitions(
             : `Approve Award (Level ${level} of ${config.award_approval_levels})`,
           toStatus: nextStatus,
           toApprovalLevel: nextLevel,
-          allowedRoles: ['admin', 'recruiter', 'hiring_manager'],
+          allowedRoles: awardApproveRoles,
           description: 'Approve the award and move forward',
         },
         ...universalDanger,

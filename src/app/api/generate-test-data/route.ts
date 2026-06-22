@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { trackApiCall } from '@/lib/api-tracker';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -188,7 +189,7 @@ ${fieldDescriptions}
 Industry/Sector context — rotate across these to create diverse, realistic data:
 - Positions to fill: Technology & IT, Finance & Controlling, Construction & Property, Engineering, HR & People, Life Sciences & Pharma
 - Client companies come from: Aerospace & Defence, Consumer & Retail, Energy & Resources, Financial Services, Health & Pharmaceuticals, Infrastructure & Real Estate, Technology/Telecoms/Media
-- Company name style: German GmbH, AG, SE (e.g. "Siemens Energy AG", "DHL Group SE", "Allianz SE", "Bosch GmbH") — not generic names
+- Company name style: fictional but realistic DACH-sounding names (GmbH/AG/SE) — invent names like "Velotherm GmbH", "Nordaxis AG", "Krautfeld Industrie SE", "Alphakon Systems GmbH". Do NOT use real company names (no Siemens, BMW, Bosch, Allianz, SAP, etc.)
 - Use the current page context and any existing data context (above) to pick an industry that is NOT yet represented or is underrepresented
 
 Rules:
@@ -197,8 +198,8 @@ Rules:
 - DACH cities: München, Berlin, Hamburg, Frankfurt, Wien, Zürich, Stuttgart, Köln, Düsseldorf, Dresden, Leipzig, Graz, Basel
 - IMPORTANT: If the user already entered values (marked with [ALREADY FILLED]), return them unchanged and let them inspire everything else
 - select fields: return EXACTLY one of the provided option values (no other values)
-- date fields (type="date"): return YYYY-MM-DD format; start dates should be around ${soon}; end dates 6-12 months after start
-- number fields: budget fields 700–1800 for daily rates; experience 2–18; use integers
+- date fields (type="date"): return YYYY-MM-DD format; start dates should be around ${soon}; end dates 6–18 months after start; if contract_type is "permanent" leave end_date EMPTY (permanent roles have no fixed end)
+- number fields: budget/salary fields depend on contract_type — permanent: annual salary 45000–130000; contractor: day rate 600–1800; freelance: hourly rate 60–180; internship: monthly 800–1500; experience 2–18; use integers
 - skills / specializations / comma-separated fields / fields with type "tags": return a comma-separated string of 4–6 realistic values relevant to the specific role and industry
 - email fields: generate a placeholder — it will be replaced automatically
 - phone fields: use German format (+49 XX XXXXXXXX)
@@ -207,6 +208,14 @@ Rules:
 
 Return ONLY a valid JSON object with field names as keys and string values. No markdown, no code blocks, no explanation.`,
     }],
+  });
+
+  trackApiCall({
+    purpose: 'AI Form Filler',
+    model: 'claude-sonnet-4-6',
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+    context: `Page: ${path}${pageContext ? ` · "${pageContext}"` : ''}`,
   });
 
   const raw = message.content.find(b => b.type === 'text');

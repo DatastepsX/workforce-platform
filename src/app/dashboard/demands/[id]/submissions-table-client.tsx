@@ -3,7 +3,8 @@
 import { useState, useTransition, useMemo, useCallback } from 'react';
 import { updateSubmissionStatus } from '@/lib/actions/submissions';
 import { createEngagement } from '@/lib/actions/engagements';
-import type { SubmissionStatus, UserRole } from '@/types/database';
+import { addInterview, updateInterview, deleteInterview } from '@/lib/actions/interviews';
+import type { SubmissionStatus, SubmissionInterview, UserRole } from '@/types/database';
 
 const STATUS_META: Record<SubmissionStatus, { label: string; color: string }> = {
   proposed:    { label: 'Proposed',    color: '#8E8E93' },
@@ -37,6 +38,7 @@ export interface SubmissionRow {
   cvSignedUrl: string | null;
   score: number | null;
   matchedSkills: string[];
+  interviews: SubmissionInterview[];
 }
 
 function MatchBadge({ score }: { score: number | null }) {
@@ -530,6 +532,9 @@ function CandidateDrawer({
               </div>
             </div>
           )}
+
+          {/* WFX-028: Interview data capture */}
+          <InterviewSection row={row} canAct={canAct} />
         </div>
 
         {/* Footer — status actions (scrollable so commission panel button stays visible) */}
@@ -587,6 +592,297 @@ function CandidateDrawer({
         )}
       </div>
     </>
+  );
+}
+
+const INTERVIEW_TYPE_LABELS: Record<string, string> = {
+  video: 'Video', onsite: 'On-site', phone: 'Phone', technical: 'Technical', hr: 'HR',
+};
+const INTERVIEW_TYPE_COLORS: Record<string, string> = {
+  video: '#007AFF', onsite: '#34C759', phone: '#FF9500', technical: '#8E8E93', hr: '#FF3B30',
+};
+
+function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(n => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(value === n ? 0 : n)}
+          className="text-xl leading-none transition-transform hover:scale-110"
+          style={{ color: n <= value ? '#FF9500' : '#E5E5EA' }}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function InterviewSection({
+  row,
+  canAct,
+}: {
+  row: SubmissionRow;
+  canAct: boolean;
+}) {
+  const [interviews, setInterviews] = useState<SubmissionInterview[]>(row.interviews);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [rating, setRating] = useState(0);
+  const [formFields, setFormFields] = useState({ interviewer_name: '', interview_date: '', interview_type: 'video', notes: '' });
+  const [isPending, startTransition] = useTransition();
+  const [formError, setFormError] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+
+  function openAdd() {
+    setEditingId(null);
+    setFormFields({ interviewer_name: '', interview_date: '', interview_type: 'video', notes: '' });
+    setRating(0);
+    setFormError('');
+    setShowForm(true);
+  }
+
+  function openEdit(iv: SubmissionInterview) {
+    setEditingId(iv.id);
+    setFormFields({
+      interviewer_name: iv.interviewer_name ?? '',
+      interview_date: iv.interview_date ?? '',
+      interview_type: iv.interview_type ?? 'video',
+      notes: iv.notes ?? '',
+    });
+    setRating(iv.rating ?? 0);
+    setFormError('');
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setFormFields({ interviewer_name: '', interview_date: '', interview_type: 'video', notes: '' });
+    setRating(0);
+    setFormError('');
+  }
+
+  async function handleAiFill() {
+    setAiLoading(true);
+    try {
+      const res = await fetch('/api/generate-test-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: window.location.pathname,
+          fields: ['interviewer_name', 'interview_date', 'interview_type', 'rating', 'notes'],
+          pageContext: `Interview planning for candidate ${row.candidateName}`,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFormFields(prev => ({
+          interviewer_name: data.interviewer_name ?? prev.interviewer_name,
+          interview_date: data.interview_date ?? prev.interview_date,
+          interview_type: data.interview_type ?? prev.interview_type,
+          notes: data.notes ?? prev.notes,
+        }));
+        if (data.rating) setRating(Math.min(5, Math.max(1, parseInt(data.rating, 10) || 0)));
+      }
+    } catch { /* non-blocking */ }
+    setAiLoading(false);
+  }
+
+  function handleSave(formData: FormData) {
+    setFormError('');
+    formData.set('submission_id', row.id);
+    formData.set('demand_id', row.demandId);
+    formData.set('rating', rating.toString());
+    startTransition(async () => {
+      if (editingId) {
+        const res = await updateInterview(editingId, row.demandId, formData);
+        if (res?.error) {
+          setFormError(res.error);
+        } else if (res?.interview) {
+          setInterviews(prev => prev.map(iv => iv.id === editingId ? res.interview as SubmissionInterview : iv));
+          closeForm();
+        }
+      } else {
+        const res = await addInterview(formData);
+        if (res?.error) {
+          setFormError(res.error);
+        } else if (res?.interview) {
+          setInterviews(prev => [res.interview as SubmissionInterview, ...prev]);
+          closeForm();
+        }
+      }
+    });
+  }
+
+  function handleDelete(id: string) {
+    startTransition(async () => {
+      const res = await deleteInterview(id, row.demandId);
+      if (!res?.error) {
+        setInterviews(prev => prev.filter(iv => iv.id !== id));
+        if (editingId === id) closeForm();
+      }
+    });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">
+          Interviews{interviews.length > 0 ? ` (${interviews.length})` : ''}
+        </p>
+        {canAct && (
+          <button
+            onClick={showForm ? closeForm : openAdd}
+            className="text-[12px] font-medium text-[#007AFF] hover:opacity-70 transition-opacity"
+          >
+            {showForm ? 'Cancel' : '+ Add'}
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form action={handleSave} className="bg-[#F2F2F7] rounded-xl p-4 mb-3 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[12px] font-semibold text-[#3C3C43]">{editingId ? 'Edit Interview' : 'New Interview'}</p>
+            <button
+              type="button"
+              onClick={handleAiFill}
+              disabled={aiLoading}
+              className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full transition-opacity hover:opacity-70 disabled:opacity-40"
+              style={{ backgroundColor: '#AF52DE18', color: '#AF52DE' }}
+              title="Fill with AI"
+            >
+              {aiLoading ? (
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+              ) : (
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+              )}
+              ✨ AI
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium text-[#3C3C43] mb-1">Interviewer</label>
+              <input
+                name="interviewer_name"
+                value={formFields.interviewer_name}
+                onChange={e => setFormFields(p => ({ ...p, interviewer_name: e.target.value }))}
+                placeholder="Anna Schmidt"
+                className="w-full px-3 py-2 rounded-[8px] border border-[#E5E5EA] bg-white text-[13px] focus:outline-none focus:border-[#007AFF]"
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-[#3C3C43] mb-1">Date</label>
+              <input
+                name="interview_date"
+                type="date"
+                value={formFields.interview_date}
+                onChange={e => setFormFields(p => ({ ...p, interview_date: e.target.value }))}
+                className="w-full px-3 py-2 rounded-[8px] border border-[#E5E5EA] bg-white text-[13px] focus:outline-none focus:border-[#007AFF]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#3C3C43] mb-1">Type</label>
+            <select
+              name="interview_type"
+              value={formFields.interview_type}
+              onChange={e => setFormFields(p => ({ ...p, interview_type: e.target.value }))}
+              className="w-full h-9 px-3 rounded-[8px] border border-[#E5E5EA] bg-white text-[13px] focus:outline-none focus:border-[#007AFF]"
+            >
+              {Object.entries(INTERVIEW_TYPE_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#3C3C43] mb-1">Rating</label>
+            <StarRating value={rating} onChange={setRating} />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[#3C3C43] mb-1">Notes</label>
+            <textarea
+              name="notes"
+              rows={2}
+              value={formFields.notes}
+              onChange={e => setFormFields(p => ({ ...p, notes: e.target.value }))}
+              placeholder="Interview notes, impressions…"
+              className="w-full px-3 py-2 rounded-[8px] border border-[#E5E5EA] bg-white text-[13px] resize-none focus:outline-none focus:border-[#007AFF]"
+            />
+          </div>
+          {formError && <p className="text-[12px] text-[#FF3B30]">{formError}</p>}
+          <button
+            type="submit"
+            disabled={isPending}
+            className="px-4 py-2 rounded-[8px] text-white text-[13px] font-semibold disabled:opacity-40"
+            style={{ backgroundColor: '#007AFF' }}
+          >
+            {isPending ? 'Saving…' : editingId ? 'Update Interview' : 'Save Interview'}
+          </button>
+        </form>
+      )}
+
+      {interviews.length === 0 && !showForm && (
+        <p className="text-[13px] text-[#C7C7CC]">No interviews logged yet.</p>
+      )}
+
+      <div className="space-y-2">
+        {interviews.map(iv => (
+          <div key={iv.id} className="bg-[#F9F9FB] rounded-xl px-4 py-3">
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                {iv.interview_date && (
+                  <span className="text-[13px] font-semibold text-black">
+                    {new Date(iv.interview_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                )}
+                <span
+                  className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: (INTERVIEW_TYPE_COLORS[iv.interview_type] ?? '#8E8E93') + '18',
+                    color: INTERVIEW_TYPE_COLORS[iv.interview_type] ?? '#8E8E93',
+                  }}
+                >
+                  {INTERVIEW_TYPE_LABELS[iv.interview_type] ?? iv.interview_type}
+                </span>
+                {iv.rating && (
+                  <span className="text-[12px]" style={{ color: '#FF9500' }}>
+                    {'★'.repeat(iv.rating)}{'☆'.repeat(5 - iv.rating)}
+                  </span>
+                )}
+              </div>
+              {canAct && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => openEdit(iv)}
+                    disabled={isPending}
+                    className="text-[11px] text-[#007AFF] hover:opacity-70 transition-opacity disabled:opacity-30"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(iv.id)}
+                    disabled={isPending}
+                    className="text-[11px] text-[#FF3B30] hover:opacity-70 transition-opacity disabled:opacity-30"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+            {iv.interviewer_name && (
+              <p className="text-[12px] text-[#8E8E93]">By {iv.interviewer_name}</p>
+            )}
+            {iv.notes && (
+              <p className="text-[13px] text-[#3C3C43] mt-1 leading-snug whitespace-pre-wrap">{iv.notes}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

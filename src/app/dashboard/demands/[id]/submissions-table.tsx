@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import type { CandidateSubmission, SubmissionStatus, UserRole } from '@/types/database';
+import type { CandidateSubmission, SubmissionStatus, SubmissionInterview, UserRole } from '@/types/database';
 import { SubmissionsTableClient, type SubmissionRow } from './submissions-table-client';
 
 function matchScore(candidateSkills: string[], demandSkills: string[]): number | null {
@@ -41,7 +41,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
 
   const { data: rawSubs } = await supabase
     .from('candidate_submissions')
-    .select('*, supplier_candidates(skills, headline, phone, notes, hourly_rate_min, hourly_rate_max, currency), candidate_profiles!candidate_profile_id(full_name, skills, headline, hourly_rate_min, hourly_rate_max, currency)')
+    .select('*, supplier_candidates(skills, headline, phone, notes, hourly_rate_min, hourly_rate_max, currency), candidate_profiles!candidate_profile_id(skills, headline, hourly_rate_min, hourly_rate_max, currency)')
     .eq('demand_id', demandId)
     .order('submitted_at', { ascending: false });
 
@@ -54,12 +54,37 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
 
   // Supplier names + emails
   const supplierIds = Array.from(new Set(rawSubs.map(s => s.supplier_id).filter(Boolean)));
-  const { data: suppliers } = await supabase
-    .from('suppliers')
-    .select('id, company_name, email')
-    .in('id', supplierIds);
+
+  // Full names for direct applicants — full_name lives on profiles, not candidate_profiles
+  const directProfileIds = Array.from(new Set(
+    rawSubs.filter(s => s.source === 'direct' && s.candidate_profile_id).map(s => s.candidate_profile_id)
+  )) as string[];
+
+  const submissionIds = rawSubs.map(s => s.id);
+
+  const [{ data: suppliers }, { data: profilesData }, { data: interviewsData }] = await Promise.all([
+    supabase.from('suppliers').select('id, company_name, email').in('id', supplierIds),
+    directProfileIds.length > 0
+      ? supabase.from('profiles').select('id, full_name').in('id', directProfileIds)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from('submission_interviews')
+      .select('*')
+      .in('submission_id', submissionIds)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  const interviewMap: Record<string, SubmissionInterview[]> = {};
+  for (const iv of (interviewsData ?? []) as SubmissionInterview[]) {
+    if (!interviewMap[iv.submission_id]) interviewMap[iv.submission_id] = [];
+    interviewMap[iv.submission_id].push(iv);
+  }
+
   const supplierMap = Object.fromEntries(
     (suppliers ?? []).map(s => [s.id, { name: s.company_name, email: s.email }])
+  );
+  const profileNameMap = Object.fromEntries(
+    (profilesData ?? []).map((p: { id: string; full_name: string | null }) => [p.id, p.full_name])
   );
 
   // Resolve all signed URLs in parallel
@@ -77,7 +102,6 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
           currency: string | null;
         } | null;
         candidate_profiles?: {
-          full_name: string | null;
           skills: string[];
           headline: string | null;
           hourly_rate_min: number | null;
@@ -99,9 +123,10 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
       const cvPath = sub.cv_path;
       const cvSignedUrl = cvPath ? await getSignedUrl(supabase, cvPath) : null;
 
-      // For direct applicants, prefer the full_name from their profile over stored submission name
-      const resolvedName = (sub.source === 'direct' && cp?.full_name && !cp.full_name.includes('@'))
-        ? cp.full_name
+      // full_name is on profiles table (looked up separately above)
+      const profileFullName = sub.candidate_profile_id ? profileNameMap[sub.candidate_profile_id] ?? null : null;
+      const resolvedName = (sub.source === 'direct' && profileFullName && !profileFullName.includes('@'))
+        ? profileFullName
         : sub.candidate_name;
 
       return {
@@ -125,6 +150,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
         cvSignedUrl,
         score,
         matchedSkills: matched,
+        interviews: interviewMap[sub.id] ?? [],
       };
     })
   );

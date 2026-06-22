@@ -123,6 +123,7 @@ export default async function SubmitCandidatesPage({
         demandId={demandId}
         candidates={candidates}
         submittedIds={submittedIds}
+        contractType={d.contract_type}
       />
     </div>
   );

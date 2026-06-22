@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'hiring_manager' | 'recruiter' | 'candidate' | 'supplier';
+export type UserRole = 'super_admin' | 'admin' | 'hiring_manager' | 'recruiter' | 'candidate' | 'supplier' | 'procurement' | 'finance';
 export type SeniorityLevel = 'junior' | 'mid' | 'senior' | 'lead';
 export type AvailabilityType = 'immediate' | 'notice_period' | 'not_available';
 export type RemotePreference = 'onsite' | 'hybrid' | 'remote' | 'flexible';
@@ -27,6 +27,7 @@ export interface Profile {
   email: string | null;
   company: string | null;
   phone: string | null;
+  tenant_id: string | null;
   created_at: string;
 }
 
@@ -47,6 +48,7 @@ export interface Demand {
   channels: string[];
   experience_years: number | null;
   approval_level: number | null;
+  tenant_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -59,6 +61,15 @@ export interface Tenant {
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface TenantRole {
+  id: string;
+  tenant_id: string;
+  role_key: string;
+  label: string;
+  active: boolean;
+  created_at: string;
 }
 
 export interface TenantConfig {
@@ -91,6 +102,14 @@ export interface ProcessHistoryEntry {
   actor_id: string | null;
   actor_role: string | null;
   notes: string | null;
+  created_at: string;
+}
+
+export interface TenantSupplier {
+  id: string;
+  tenant_id: string;
+  supplier_id: string;
+  active: boolean;
   created_at: string;
 }
 
@@ -321,6 +340,19 @@ export interface CareerSkillGap {
   missing_skills: string[];
   recommendations: CareerRecommendation[];
   generated_at: string;
+}
+
+export interface SubmissionInterview {
+  id: string;
+  submission_id: string;
+  demand_id: string;
+  interviewer_name: string | null;
+  interview_date: string | null;
+  interview_type: 'video' | 'onsite' | 'phone' | 'technical' | 'hr';
+  rating: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface Engagement {

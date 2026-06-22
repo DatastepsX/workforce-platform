@@ -3,20 +3,25 @@
 import { useState } from 'react';
 
 const ROLE_META: Record<string, { label: string; color: string }> = {
-  admin:          { label: 'Admin',          color: '#FF3B30' },
+  super_admin:    { label: 'Super Admin',     color: '#FF9500' },
+  admin:          { label: 'Admin',           color: '#FF3B30' },
   recruiter:      { label: 'Recruiter',       color: '#007AFF' },
   hiring_manager: { label: 'Hiring Manager',  color: '#FF9500' },
   supplier:       { label: 'Supplier',        color: '#34C759' },
   candidate:      { label: 'Candidate',       color: '#8E8E93' },
+  procurement:    { label: 'Procurement',     color: '#AF52DE' },
+  finance:        { label: 'Finance',         color: '#30B0C7' },
 };
 
-const ROLE_ORDER = ['admin', 'recruiter', 'hiring_manager', 'supplier', 'candidate'];
+const ROLE_ORDER = ['super_admin', 'admin', 'recruiter', 'hiring_manager', 'procurement', 'finance', 'supplier', 'candidate'];
 
 interface UserOption {
   id: string;
   email: string;
   role: string;
   displayName: string;
+  tenantName: string | null;
+  configuredRoleLabel: string | null;
 }
 
 interface Props {
@@ -115,7 +120,15 @@ export function DevUserSwitcher({ switchAction, allUsers }: Props) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-black truncate leading-tight">{u.displayName}</p>
-                          <p className="text-[10px] text-[#8E8E93] truncate leading-tight mt-0.5">{u.email}</p>
+                          <p className="text-[10px] text-[#8E8E93] truncate leading-tight mt-0.5">
+                            {u.tenantName ? (
+                              <span className="text-[#007AFF] font-medium">{u.tenantName} · </span>
+                            ) : null}
+                            {u.configuredRoleLabel && u.configuredRoleLabel !== (ROLE_META[u.role]?.label ?? u.role) ? (
+                              <span className="text-[#FF9500] font-medium">{u.configuredRoleLabel} · </span>
+                            ) : null}
+                            {u.email}
+                          </p>
                         </div>
                       </button>
                     </form>

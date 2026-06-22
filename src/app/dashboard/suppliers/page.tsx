@@ -11,7 +11,7 @@ export default async function SuppliersPage() {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin', 'recruiter'].includes(profile?.role ?? '')) redirect('/dashboard');
+  if (!['super_admin', 'admin', 'recruiter'].includes(profile?.role ?? '')) redirect('/dashboard');
 
   const role = profile?.role ?? '';
 

@@ -12,7 +12,7 @@ import { MarkDemandUnreadButton } from './mark-unread-button';
 import type { Demand, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus, ProcessHistoryEntry, TenantConfig } from '@/types/database';
 import { SocialMediaTab } from './social-media-tab';
 import { ProcessPanel } from './process-panel';
-import { getDemandHistory, getDefaultTenantConfig } from '@/lib/actions/workflow';
+import { getDemandHistory, getTenantConfig } from '@/lib/actions/workflow';
 import { STATUS_COLORS, STATUS_LABELS } from '@/lib/workflow';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -63,12 +63,27 @@ export default async function DemandDetailPage({ params }: PageProps) {
 
   // Fetch suppliers + existing demand_suppliers for the send panel (use admin client to bypass RLS for all roles including hiring_manager)
   const adminDb = createAdminClient();
-  const [{ data: suppliersData }, { data: sentData }] = canSendToSuppliers
-    ? await Promise.all([
-        adminDb.from('suppliers').select('*').order('company_name'),
-        adminDb.from('demand_suppliers').select('*').eq('demand_id', id),
-      ])
-    : [{ data: null }, { data: null }];
+  let suppliersData: Supplier[] | null = null;
+  let sentData = null;
+  if (canSendToSuppliers) {
+    const [suppliersRes, sentRes] = await Promise.all([
+      // If demand is tenant-scoped, only show suppliers assigned & active for that tenant
+      demand.tenant_id
+        ? adminDb.from('tenant_suppliers')
+            .select('supplier_id')
+            .eq('tenant_id', demand.tenant_id)
+            .eq('active', true)
+            .then(async ({ data: ts }) => {
+              const ids = (ts ?? []).map((r: { supplier_id: string }) => r.supplier_id);
+              if (!ids.length) return { data: [] };
+              return adminDb.from('suppliers').select('*').in('id', ids).order('company_name');
+            })
+        : adminDb.from('suppliers').select('*').order('company_name'),
+      adminDb.from('demand_suppliers').select('*').eq('demand_id', id),
+    ]);
+    suppliersData = (suppliersRes.data ?? []) as Supplier[];
+    sentData = sentRes.data;
+  }
 
   const allSuppliers = (suppliersData ?? []) as Supplier[];
   const sentEntries = ((sentData ?? []) as DemandSupplier[]).map(entry => ({
@@ -79,10 +94,10 @@ export default async function DemandDetailPage({ params }: PageProps) {
   // Fetch process history + tenant config for ProcessPanel
   let processHistory: ProcessHistoryEntry[] = [];
   let tenantConfig: TenantConfig | null = null;
-  if (['admin', 'recruiter', 'hiring_manager'].includes(role)) {
+  if (['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role)) {
     [processHistory, tenantConfig] = await Promise.all([
       getDemandHistory(id) as Promise<ProcessHistoryEntry[]>,
-      getDefaultTenantConfig(),
+      getTenantConfig(demand.tenant_id),
     ]);
   }
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { emailEngagementCreated } from '@/lib/email';
 import { createNotifications } from '@/lib/actions/notifications';
 import type { EngagementStatus } from '@/types/database';
@@ -57,7 +58,35 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
   });
   if (engErr) return { error: engErr.message };
 
-  // Move submission to 'hired' and close demand
+  // Determine award status from tenant config
+  const { data: demand } = await supabase
+    .from('demands')
+    .select('tenant_id')
+    .eq('id', input.demandId)
+    .single();
+
+  let awardStatus: string = 'award';
+  let awardApprovalLevel: number | null = 1;
+  if (demand?.tenant_id) {
+    const admin = createAdminClient();
+    const { data: cfg } = await admin
+      .from('tenant_configs')
+      .select('award_approval_levels, award_po_step')
+      .eq('tenant_id', demand.tenant_id)
+      .single();
+    if (cfg) {
+      const typedCfg = cfg as { award_approval_levels: number; award_po_step: boolean };
+      if (typedCfg.award_approval_levels === 0) {
+        awardApprovalLevel = null;
+        awardStatus = typedCfg.award_po_step ? 'contracting' : 'filled';
+      } else {
+        awardStatus = 'award';
+        awardApprovalLevel = 1;
+      }
+    }
+  }
+
+  // Move submission to 'hired' and advance demand to award phase
   await Promise.all([
     supabase
       .from('candidate_submissions')
@@ -65,7 +94,7 @@ export async function createEngagement(input: CreateEngagementInput): Promise<{ 
       .eq('id', input.submissionId),
     supabase
       .from('demands')
-      .update({ status: 'closed' })
+      .update({ status: awardStatus, approval_level: awardApprovalLevel })
       .eq('id', input.demandId),
   ]);
 

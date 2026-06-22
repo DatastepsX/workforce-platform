@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SOFT_SKILLS } from '@/types/database';
+import { trackApiCall } from '@/lib/api-tracker';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -90,6 +91,7 @@ Schätze jeden Soft-Skill 1–5 basierend auf Tätigkeitsbeschreibungen.` },
               }],
             });
 
+            trackApiCall({ purpose: 'Career Avatar — CV Parse', model: 'claude-sonnet-4-6', inputTokens: cvRes.usage.input_tokens, outputTokens: cvRes.usage.output_tokens, context: `Candidate: ${user.id}` });
             const cvText = cvRes.content[0].type === 'text' ? cvRes.content[0].text : '';
             cvData = JSON.parse(stripJsonFences(cvText));
           }
@@ -147,6 +149,7 @@ ${profileCtx}`,
       }],
     });
 
+    trackApiCall({ purpose: 'Career Avatar — Summary', model: 'claude-sonnet-4-6', inputTokens: summaryRes.usage.input_tokens, outputTokens: summaryRes.usage.output_tokens, context: `Candidate: ${cp.full_name ?? user.id}` });
     const avatarSummary = summaryRes.content[0].type === 'text' ? summaryRes.content[0].text.trim() : '';
 
     await adminDb.from('candidate_profiles').update({
@@ -210,6 +213,7 @@ Verknüpfe nur echte Demand-IDs aus der Liste oben in matching_demand_ids.`,
       }],
     });
 
+    trackApiCall({ purpose: 'Career Avatar — Career Path', model: 'claude-sonnet-4-6', inputTokens: pathRes.usage.input_tokens, outputTokens: pathRes.usage.output_tokens, context: `Candidate: ${cp.full_name ?? user.id}` });
     const pathText = pathRes.content[0].type === 'text' ? pathRes.content[0].text : '{}';
     let pathData: PathDataRaw = {};
     try { pathData = JSON.parse(stripJsonFences(pathText)) as PathDataRaw; } catch { /* use empty */ }
@@ -263,6 +267,7 @@ Erlaubte types: "course","certification","project","mentoring".
         }],
       });
 
+      trackApiCall({ purpose: 'Career Avatar — Skill Gaps', model: 'claude-sonnet-4-6', inputTokens: gapRes.usage.input_tokens, outputTokens: gapRes.usage.output_tokens, context: `Candidate: ${cp.full_name ?? user.id}` });
       const gapText = gapRes.content[0].type === 'text' ? gapRes.content[0].text : '[]';
       let gapData: GapItemRaw[] = [];
       try { gapData = JSON.parse(stripJsonFences(gapText)) as GapItemRaw[]; } catch { /* skip */ }

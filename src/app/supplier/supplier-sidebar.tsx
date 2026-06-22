@@ -10,6 +10,8 @@ interface UserOption {
   email: string;
   role: string;
   displayName: string;
+  tenantName: string | null;
+  configuredRoleLabel: string | null;
 }
 
 interface Props {

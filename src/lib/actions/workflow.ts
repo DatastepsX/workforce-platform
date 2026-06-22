@@ -7,12 +7,13 @@ import { getTransitions } from '@/lib/workflow';
 import type { DemandStatus, UserRole, TenantConfig } from '@/types/database';
 import { createNotifications } from './notifications';
 
-async function getDefaultConfig(admin: ReturnType<typeof createAdminClient>): Promise<TenantConfig> {
-  const { data } = await admin
-    .from('tenant_configs')
-    .select('*')
-    .limit(1)
-    .single();
+async function getConfigForTenant(admin: ReturnType<typeof createAdminClient>, tenantId: string | null): Promise<TenantConfig> {
+  if (tenantId) {
+    const { data } = await admin.from('tenant_configs').select('*').eq('tenant_id', tenantId).single();
+    if (data) return data as TenantConfig;
+  }
+  // Fallback: first available config
+  const { data } = await admin.from('tenant_configs').select('*').limit(1).single();
   return data as TenantConfig;
 }
 
@@ -37,12 +38,12 @@ export async function transitionDemandStatus(
 
   const { data: demand } = await admin
     .from('demands')
-    .select('status, approval_level, created_by')
+    .select('status, approval_level, created_by, tenant_id')
     .eq('id', demandId)
     .single();
   if (!demand) return { error: 'Demand not found' };
 
-  const config = await getDefaultConfig(admin);
+  const config = await getConfigForTenant(admin, (demand as { tenant_id: string | null }).tenant_id);
   if (!config) return { error: 'Tenant config not found' };
 
   const currentStatus = demand.status as DemandStatus;
@@ -113,12 +114,12 @@ export async function getDemandHistory(demandId: string) {
   return data ?? [];
 }
 
-export async function getDefaultTenantConfig(): Promise<TenantConfig | null> {
+export async function getTenantConfig(tenantId?: string | null): Promise<TenantConfig | null> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from('tenant_configs')
-    .select('*')
-    .limit(1)
-    .single();
+  if (tenantId) {
+    const { data } = await supabase.from('tenant_configs').select('*').eq('tenant_id', tenantId).single();
+    if (data) return data as TenantConfig;
+  }
+  const { data } = await supabase.from('tenant_configs').select('*').limit(1).single();
   return data as TenantConfig | null;
 }

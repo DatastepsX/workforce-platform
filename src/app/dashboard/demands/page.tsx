@@ -36,6 +36,9 @@ export default async function DemandsPage({ searchParams }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const isSuperAdmin = profile?.role === 'super_admin';
+
   const { status, priority, q } = await searchParams;
 
   let query = supabase
@@ -58,6 +61,18 @@ export default async function DemandsPage({ searchParams }: PageProps) {
   ]);
   const list = (demands ?? []) as Demand[];
   const unreadIds = new Set((unreadNotifs ?? []).map(n => n.related_id as string));
+
+  // For super_admin: fetch tenant names to show which client each demand belongs to
+  let tenantNameMap: Record<string, string> = {};
+  if (isSuperAdmin) {
+    const tenantIds = Array.from(new Set(list.filter(d => d.tenant_id).map(d => d.tenant_id))) as string[];
+    if (tenantIds.length > 0) {
+      const { data: tenantsData } = await supabase.from('tenants').select('id, name').in('id', tenantIds);
+      tenantNameMap = Object.fromEntries(
+        ((tenantsData ?? []) as { id: string; name: string }[]).map(t => [t.id, t.name])
+      );
+    }
+  }
 
   return (
     <div className="px-4 sm:px-8 pt-20 sm:pt-10 pb-10">
@@ -118,6 +133,11 @@ export default async function DemandsPage({ searchParams }: PageProps) {
                       {PRIORITY_LABELS[demand.priority]}
                     </span>
                     <span className="text-[11px] text-[#8E8E93]">{CONTRACT_LABELS[demand.contract_type]}</span>
+                    {isSuperAdmin && demand.tenant_id && tenantNameMap[demand.tenant_id] && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF]">
+                        {tenantNameMap[demand.tenant_id]}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[15px] sm:text-[16px] font-semibold text-black">{demand.title}</p>
                   {demand.location && (

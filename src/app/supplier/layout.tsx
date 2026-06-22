@@ -14,10 +14,17 @@ async function signOut() {
 
 async function switchToUser(formData: FormData) {
   'use server';
+  const { headers } = await import('next/headers');
   const userId = formData.get('userId') as string;
   const email = formData.get('email') as string;
   const role = formData.get('role') as string;
   if (!userId && !email) return;
+
+  const headersList = await headers();
+  const host = headersList.get('host') ?? 'workforce-platform-omega.vercel.app';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  const origin = `${protocol}://${host}`;
+  const dest = role === 'supplier' ? '/supplier' : '/dashboard';
 
   if (userId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -25,9 +32,7 @@ async function switchToUser(formData: FormData) {
       const { data } = await admin.auth.admin.generateLink({
         type: 'magiclink',
         email,
-        options: {
-          redirectTo: `${process.env.APP_URL ?? 'https://workforce-platform-omega.vercel.app'}${role === 'supplier' ? '/supplier' : '/dashboard'}`,
-        },
+        options: { redirectTo: `${origin}/auth/callback?next=${dest}` },
       });
       if (data?.properties?.action_link) {
         redirect(data.properties.action_link);
@@ -38,7 +43,7 @@ async function switchToUser(formData: FormData) {
   const supabase = await createClient();
   await supabase.auth.signOut();
   await supabase.auth.signInWithPassword({ email, password: 'Test1234!' });
-  redirect(role === 'supplier' ? '/supplier' : '/dashboard');
+  redirect(dest);
 }
 
 export default async function SupplierLayout({ children }: { children: React.ReactNode }) {
@@ -70,7 +75,7 @@ export default async function SupplierLayout({ children }: { children: React.Rea
   const supplierNameMap = Object.fromEntries(
     ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
   );
-  const allUsers = ((allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email'>[])
+  const allUsers = ((allProfilesData ?? []) as Pick<Profile, 'id' | 'role' | 'full_name' | 'email' | 'tenant_id'>[])
     .filter(p => p.email)
     .map(p => ({
       id: p.id,
@@ -79,6 +84,8 @@ export default async function SupplierLayout({ children }: { children: React.Rea
       displayName: p.role === 'supplier' && supplierNameMap[p.id]
         ? supplierNameMap[p.id]
         : (p.full_name || p.email || p.id),
+      tenantName: null as string | null,
+      configuredRoleLabel: null as string | null,
     }));
 
   return (

@@ -34,6 +34,12 @@ export async function createDemand(formData: FormData) {
 
   const channels = formData.getAll('channels') as string[];
 
+  const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single();
+
+  // Use profile tenant if set; otherwise take the explicitly selected tenant from the form
+  const tenantId = profile?.tenant_id ?? (formData.get('tenant_id') as string | null) ?? null;
+  if (!tenantId) throw new Error('A client must be selected for this demand.');
+
   const { data, error } = await supabase.from('demands').insert({
     title: formData.get('title') as string,
     description: formData.get('description') as string || null,
@@ -50,6 +56,7 @@ export async function createDemand(formData: FormData) {
     priority: formData.get('priority') as DemandPriority,
     status: 'draft' as DemandStatus,
     created_by: user.id,
+    tenant_id: tenantId,
   }).select().single();
 
   if (error) throw new Error(error.message);

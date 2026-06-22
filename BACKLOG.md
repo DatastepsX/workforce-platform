@@ -25,11 +25,40 @@
 
 ---
 
-## 🏃 Sprint 1 — Active (see SPRINT.md)
+## 🏃 Sprint 2 — Planned (see SPRINT.md)
 
 ---
 
 ## 📋 Backlog
+
+### UX & Workflow
+
+---
+
+#### [WFX-031] Supplier candidate rate type auto-set from demand contract type
+**Priority:** P1 | **Size:** XS (1) | **Type:** Improvement
+
+When a supplier submits a candidate to a demand, the rate type field should be pre-populated from the demand's contract type (permanent → annual, contractor → day, freelance → hourly). AI-generated candidates via DevDataGenerator should also get matching rates.
+
+**Acceptance Criteria:**
+- [ ] Supplier submission form pre-selects rate type based on demand contract type on mount
+- [ ] DevDataGenerator instructs Claude to use a matching rate value when demand context is present
+- [ ] Rate type mapping: `permanent → annual`, `contractor → day`, `freelance → hourly`, `fixed_price → fixed`
+
+---
+
+#### [WFX-032] Approval pending badge in sidebar navigation
+**Priority:** P1 | **Size:** S (2) | **Type:** Improvement
+
+When one or more demands are in `pending_approval` status and the current user's role can approve them, show a badge count on the Demands sidebar link (same pattern as Submissions inbox badge).
+
+**Acceptance Criteria:**
+- [ ] Admin and hiring_manager roles see the badge
+- [ ] Badge count = number of demands in `pending_approval` status (all for admin, own demands for HM)
+- [ ] Badge clears when user visits `/dashboard/demands` (or when no pending approvals remain)
+- [ ] Consistent visual style with existing Submissions badge
+
+---
 
 ### Architecture & Multi-Tenancy
 

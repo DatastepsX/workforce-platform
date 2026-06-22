@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(*)",
       "Bash(git commit -m 'Fix demand detail 404: split join query into two separate queries *)",
       "Bash(git commit -m ' *)",
       "Bash(npm ls *)",
@@ -46,7 +47,21 @@
       "Bash(git -C /Users/alessandro/workforce-platform status --porcelain)",
       "Bash(sed -i '' \"s/demand\\\\.status === 'open'/['sourcing','screening','interview'].includes\\(demand.status\\)/\" /Users/alessandro/workforce-platform/src/app/careers/\\\\[id\\\\]/page.tsx)",
       "Bash(sed -i '' \"s/x\\\\.status === 'open'/['sourcing','screening','interview'].includes\\(x.status\\)/\" /Users/alessandro/workforce-platform/src/app/dashboard/page.tsx)",
-      "Bash(sed -i '' \"s/\\\\.eq\\('status', 'open'\\)/.in\\('status', ['sourcing','screening','interview']\\)/\" /Users/alessandro/workforce-platform/src/app/dashboard/candidates/page.tsx /Users/alessandro/workforce-platform/src/app/careers/\\\\[id\\\\]/apply/page.tsx /Users/alessandro/workforce-platform/src/app/api/career-avatar/generate/route.ts)"
+      "Bash(sed -i '' \"s/\\\\.eq\\('status', 'open'\\)/.in\\('status', ['sourcing','screening','interview']\\)/\" /Users/alessandro/workforce-platform/src/app/dashboard/candidates/page.tsx /Users/alessandro/workforce-platform/src/app/careers/\\\\[id\\\\]/apply/page.tsx /Users/alessandro/workforce-platform/src/app/api/career-avatar/generate/route.ts)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__list_migrations",
+      "mcp__claude_ai_Supabase__list_extensions",
+      "mcp__claude_ai_Supabase__get_project",
+      "mcp__claude_ai_Supabase__get_logs",
+      "mcp__claude_ai_Supabase__get_advisors",
+      "mcp__claude_ai_Supabase__generate_typescript_types",
+      "Bash(npm run build *)",
+      "Bash(npm run dev *)",
+      "Bash(npm run lint *)",
+      "Bash(source .env.local && curl -s -X POST https://api.resend.com/emails *)",
+      "Bash(source /Users/alessandro/workforce-platform/.env.local && curl -s *)"
     ],
     "additionalDirectories": [
       "/Users/alessandro/workforce-platform/src/app/dashboard/candidates",

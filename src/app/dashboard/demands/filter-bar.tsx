@@ -70,8 +70,8 @@ export function FilterBar() {
         )}
       </div>
 
-      {/* Filter chips */}
-      <div className="flex flex-wrap gap-2">
+      {/* Filter controls: native selects on mobile, chip strips on desktop */}
+      <div className="flex gap-2">
         <FilterGroup label="Status" options={STATUSES} value={status} onChange={v => setParam('status', v)} />
         <FilterGroup label="Priority" options={PRIORITIES} value={priority} onChange={v => setParam('priority', v)} />
       </div>
@@ -83,15 +83,29 @@ function FilterGroup<T extends string>({ label, options, value, onChange }: {
   label: string; options: { value: T; label: string }[]; value: string; onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 bg-white rounded-xl px-2.5 py-1.5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-      <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide mr-0.5">{label}</span>
-      {options.map(opt => (
-        <button key={opt.value} onClick={() => onChange(opt.value)}
-          className={`px-2.5 py-1 rounded-lg text-[12px] font-medium transition-colors ${value === opt.value ? 'bg-[#007AFF] text-white' : 'text-[#3C3C43] hover:bg-[#F2F2F7]'}`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
+    <>
+      {/* Mobile: compact native select */}
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value as T)}
+        className="sm:hidden h-9 px-3 rounded-xl bg-white text-[13px] text-black shadow-[0_1px_4px_rgba(0,0,0,0.06)] border-[1.5px] border-transparent focus:border-[#007AFF] focus:outline-none appearance-none cursor-pointer"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '28px' }}
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.value === 'all' ? label + ': All' : opt.label}</option>
+        ))}
+      </select>
+      {/* Desktop: chip strip */}
+      <div className="hidden sm:flex items-center gap-1 bg-white rounded-xl px-2.5 py-1.5 shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
+        <span className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-wide mr-0.5">{label}</span>
+        {options.map(opt => (
+          <button key={opt.value} onClick={() => onChange(opt.value)}
+            className={`px-2.5 py-1 rounded-lg text-[12px] font-medium transition-colors ${value === opt.value ? 'bg-[#007AFF] text-white' : 'text-[#3C3C43] hover:bg-[#F2F2F7]'}`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
