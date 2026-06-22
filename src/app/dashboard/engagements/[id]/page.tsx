@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { updateEngagementStatus } from '@/lib/actions/engagements';
@@ -61,7 +62,8 @@ export default async function EngagementDetailPage({ params }: PageProps) {
     .from('profiles').select('role').eq('id', user.id).single();
   if (!['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(profile?.role ?? '')) redirect('/dashboard');
 
-  const { data: engData } = await supabase
+  const admin = createAdminClient();
+  const { data: engData } = await admin
     .from('engagements')
     .select('*')
     .eq('id', id)
@@ -70,13 +72,13 @@ export default async function EngagementDetailPage({ params }: PageProps) {
   if (!engData) notFound();
   const engBase = engData as Engagement;
 
-  // Fetch related supplier + submission in parallel (best-effort, may be null due to RLS)
+  // Fetch related supplier + submission in parallel
   const [{ data: supData }, { data: subData }] = await Promise.all([
     engBase.supplier_id
-      ? supabase.from('suppliers').select('id, company_name, email, phone, contact_person').eq('id', engBase.supplier_id).single()
+      ? admin.from('suppliers').select('id, company_name, email, phone, contact_person').eq('id', engBase.supplier_id).single()
       : Promise.resolve({ data: null }),
     engBase.submission_id
-      ? supabase.from('candidate_submissions').select('id, candidate_profile_id, proposed_rate, rate_type, notes, source').eq('id', engBase.submission_id).single()
+      ? admin.from('candidate_submissions').select('id, candidate_profile_id, proposed_rate, rate_type, notes, source').eq('id', engBase.submission_id).single()
       : Promise.resolve({ data: null }),
   ]);
 
