@@ -1,5 +1,42 @@
 # WorkforceX Platform
 
+## Changelog Email Rule
+After completing any feature or fix, send a changelog email to micciche.alessandro@gmail.com via Resend. Use this script pattern (run from `/Users/alessandro/workforce-platform`):
+
+```bash
+export $(grep -v '^#' .env.local | xargs) && node -e "
+import('resend').then(({Resend}) => {
+  const r = new Resend(process.env.RESEND_API_KEY);
+  r.emails.send({
+    from: 'WorkforceX <onboarding@resend.dev>',
+    to: 'micciche.alessandro@gmail.com',
+    subject: 'WorkforceX Session — [short title]',
+    html: \`[html body with what was built + testing instructions]\`
+  }).then(res => console.log('sent:', res.data?.id));
+});
+" --input-type=module
+```
+
+Or write to a `.mjs` file in the project root, run it, then delete it. Include: what was built, key decisions, testing instructions, and **always** a "Better Requirements Writing" block — even if the requirements were clear and well-written (in that case, say so and explain what made them good). The block must always be present.
+
+## Session Continuity Rule
+This project is worked on from multiple Claude Code sessions (VSCode + iPhone SSH). To maintain shared context:
+
+**At the END of every session:** append a brief entry to `SESSION_LOG.md` in the project root:
+- What was built or changed
+- Key decisions made and why
+- What's pending or next
+
+**Before EVERY user message/prompt:** read `SESSION_LOG.md` to catch any changes made from another session (e.g. iPhone SSH) since the last check. The user switches between VSCode and iPhone multiple times per day.
+
+Format:
+```
+### YYYY-MM-DD HH:MM — [VSCode|SSH]
+- Built: ...
+- Decided: ...
+- Next: ...
+```
+
 ## Vision
 Workforce Operating System — not a classic ATS.
 Manages permanent hiring, freelancers, contractors, and internal mobility across one unified process.
@@ -20,57 +57,31 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - `admin` — full access to everything
 - `hiring_manager` — creates demands, sees own demand pipeline + submissions
 - `recruiter` — manages all demands, candidates, suppliers
-- `procurement` — sees Demands/Submissions/Awards, part of approval workflows
-- `finance` — sees Demands/Submissions/Awards, part of approval workflows
+- `procurement` — sees Demands/Submissions/Awards/Suppliers/Engagements; approves demands at `pending_approval`; can edit demand while approving
+- `finance` — sees Demands/Submissions/Awards/Suppliers/Engagements; approves demands at `pending_approval`; can edit demand while approving
 - `candidate` — creates profile, applies via career portal, sees own applications + match scores
 - `supplier` — receives demand requests, submits candidates via supplier portal
 
 ## Current Status
-- **Auth + Roles**: profiles table with role enum, RLS, SECURITY DEFINER helper functions
-- **Demands**: full CRUD, status workflow (draft → open → closed/cancelled), skills tagging, budget, dates, channels
-- **Suppliers**: full CRUD, demand distribution (send demands to suppliers)
-- **Candidate Profiles**: full profile with skills, rates, CV upload to `cvs` bucket
-- **Supplier Candidates**: supplier-side candidate management, CV upload to `supplier-cvs` bucket
-- **Candidate Submissions**: supplier and direct-apply submissions, status workflow, match scoring
-- **Career Portal**: public job board (`/careers`), apply form with CV upload
-- **Engagements**: commission a candidate from a submission → creates engagement, closes demand, emails supplier
-- **Matching**: `computeMatch()` in `src/lib/matching.ts` — skills (70 pts) + rate fit (30 pts) = 0–100 score
-- **Email Notifications**: 5 functions (demand sent, candidates submitted, status changed, application confirmation, engagement created)
-- **AI Test Data**: `DevDataGenerator` (✨ button) fills forms with Claude-generated realistic DACH enterprise data, context-aware via page H1/H2
-- **Dev User Switcher**: switch between test users from sidebar (all roles → all roles)
-- **Social Media Module**: generate posts (Instagram, Facebook, LinkedIn, TikTok) for demands with `career_portal` channel; status workflow draft→approved→posted/rejected→archived; dark modern canvas image (1080×1080) with QR code, skills chips, details; `NEXT_PUBLIC_APP_URL` env var controls tracking URL domain; migration `20260617000016_social_media.sql` applied
-- **Social Media Overview**: `/dashboard/social-media` — all posts from all demands, filterable by platform/status, full management modal; sidebar link for admin/recruiter
-- **Supplier Sidebar**: supplier portal uses same left sidebar layout as dashboard (with mobile hamburger, DevUserSwitcher at bottom) — `src/app/supplier/supplier-sidebar.tsx`
-- **Career Portal Inactive Demand**: graceful "position no longer active" page when arriving at closed/cancelled/draft demand via QR/link; shows reason, CTA to browse open positions
-- **Skills Filter**: candidate list has clickable skill chips (OR logic); supplier list has specialization chips (OR logic) — chips on list rows also act as filters
-- **Candidate Match Pool**: second tab "Match Pool" on `/dashboard/candidates` — default filter "All"; table with columns Skills % + Rate % + Score ring on desktop, compact cards on mobile; `+ Zuordnen` button on each row creates a `candidate_submissions` record via `assignCandidateToDemand()`; `computeMatch()` returns `skillsMatchPct` and `conditionsMatchPct`; demands with no skills+budget skipped; skills filter is horizontal-scroll strip; candidate display name uses `getCandidateDisplayName()` helper: prefers `candidate_profiles.full_name`, then `profile.full_name` if non-email, then derives readable name from email plus-alias (e.g. `applicant1` → `Applicant1`)
-- **Apply Form AI CV**: "Fill with AI" button also auto-generates and pre-populates a PDF CV using `@react-pdf/renderer`; blue dot + file name shown; manual upload clears generated CV
-- **Sort by updated_at**: demands and engagements lists now ordered by `updated_at` descending; demand list shows both "Updated X" and "Created X" dates; migration `20260617000018_engagement_updated_at.sql`
-- **Submissions Inbox**: `/dashboard/submissions` — all candidate submissions across all demands, sorted by submitted_at; filter by status + source; "New" badge on proposed submissions; sidebar badge counts unread `new_submission` notifications (clears when page is visited via `markSubmissionNotificationsRead()`)
-- **Notifications**: `notifications` table with Supabase Realtime; modern bell icon (filled when unread, `#FF3B30` badge); fixed-position dropdown above sidebar with type-colored icons, clickable links, unread dot; triggered on: new career portal application (→ recruiters), engagement created (→ supplier + recruiters), demand created (→ recruiters/admins), supplier created (→ recruiters/admins), candidate profile created (→ recruiters/admins), demand sent to supplier (→ supplier in-app `demand_received`), demand reaches pending_approval (→ admin/hiring_manager); migrations 019+020+025; `NotificationType` in `src/types/database.ts` includes 8 types
-- **Engagement Total**: `total_amount` (final agreed price) + `price_locked` (manually set) on engagements; commission panel shows live calc with editable total override (orange "Preis festgelegt" badge when overridden); engagements list shows Duration + Total columns; detail page shows "Preis festgelegt" badge + diff vs calculation; migration `20260617000017_engagement_total.sql`
-- **Career Portal Rate**: apply form collects desired rate/salary with contract-type-aware wording (Wunschgehalt for permanent, Wunschsatz for freelance/contractor); saved as `proposed_rate` + `rate_type` on submission
-- **Career Avatar & Navigator**: AI-powered competency profile + career path planning for candidates; 4-step synchronous Claude pipeline (CV parse → avatar summary → career path → skill gaps); 12 soft skills with self-rating sliders + AI-inferred ratings; SVG radar chart (two lines: self vs AI); single visibility toggle per avatar; Career Navigator `/dashboard/career-navigator` shows personalized timeline with skill gaps, recommendations, and matched open demands; Career Ladders admin `/dashboard/career-ladders` (admin/recruiter) — 4 DACH seed ladders seeded; recruiter read-only view on candidate detail when avatar is visible; migration `20260618000022_career_avatar.sql`
-- **Profile Page Tabs**: `/dashboard/profile` shows two tabs — "Mein Profil" (ProfileForm) and "Kompetenzprofil" (AvatarSection/Career Avatar); purple dot badge on tab when avatar is ready; implemented via `ProfilePageTabs` client component (`src/app/dashboard/profile/profile-page-tabs.tsx`)
-- **Unified Candidates List**: `/dashboard/candidates` shows both `candidate_profiles` (registered) and `supplier_candidates` (supplier-uploaded) in one list; registered candidates link to detail pages, supplier candidates shown with purple "Lieferant" badge; Match Pool includes both types for scoring; `computeMatch()` widened to accept `MatchableCandidate` interface (works for both types); `assignSupplierCandidateToDemand()` action for assigning supplier candidates from the pool
-- **Candidate Display Names**: DevUserSwitcher and candidates list now show real full names by looking up `candidate_profiles.full_name` for candidate-role users (fixes "Applicant1" display)
-- **DevDataGenerator Demand Context**: When generating test data on supplier candidate forms with a `return_to` URL pointing to a demand, the API looks up the demand's title + skills and instructs Claude to generate matching candidate data
-- **Workflow v2 — Process Visibility**: 12-status demand model (`draft/pending_review/pending_approval/sourcing/screening/award/contracting/filled/on_hold/cancelled/rejected` + legacy `interview` in enum); config-driven state machine in `src/lib/workflow/index.ts`; `ProcessPanel` compact horizontal stepper (dots + phase labels) + status badge + "Next: [Role]" actor + role-filtered action buttons + collapsible history log; `transitionDemandStatus()` server action validates role, logs to `process_history`, fires `demand_pending_approval` notification when demand reaches pending_approval; migrations 23 + 24 (workflow v2) + 25 (notification type); `tenants` + `tenant_configs` tables control stepper visibility and approval levels
-- **Sprint 3 — Role Config + User Management + Seed Data**: `tenant_roles` table (per-tenant role label override + active toggle); `tenant_id` on `profiles`; Role config section in tenant detail (5 predefined roles with label + toggle); User management section (invite by email via Supabase admin API → shows temp password, or assigns existing user; remove from tenant); Demo tenants seeded: Siemens AG (full MSP, 2-level approval) + Allianz SE (self-service, no MSP); existing HM user assigned to Siemens AG; migration `20260622000026_tenant_user_roles.sql`; `src/lib/actions/tenants.ts` extended with `saveTenantRoles`, `inviteUserToTenant`, `removeUserFromTenant`
-- **Sprint 2 — UX Quick Wins + Tenant Management**: Rate type auto-set from demand contract type on supplier submit panel (`permanent→annual`, `contractor→daily`, `freelance→hourly`, `fixed_price→fixed`); orange pending-approval badge on Demands sidebar link for admin + HM; Tenant management at `/dashboard/settings/tenants` (list + create + detail/edit + active toggle); Per-tenant workflow config (demand MSP review/approval levels/screening + award MSP offer/approval levels/PO step) embedded in tenant detail; Settings section in sidebar (admin only); `src/lib/actions/tenants.ts`; `src/app/dashboard/settings/tenants/`
-- **Sprint 1 — MSP Workflow + UX Fixes**: Interview removed from demand transitions (happens at submission level; screening → award directly); Engagements renamed to Awards throughout UI; "Commission" → "Award Candidate"; Award panel fully English with contract-type-aware rate labels (Day Rate/Hourly Rate/Annual Salary); submission events (shortlisted, interview, rejected, hired, supplier upload) logged to `process_history` history log; demands list mobile responsive (stacked layout, icon-only button, budget inline); skills chip strip wraps instead of horizontal scroll; direct applicants show `candidate_profiles.full_name` in submissions table; `BACKLOG.md` + `SPRINT.md` added for product management
-- **Candidate Match Pool**: skills filter wraps (no horizontal scroll); display name for direct applicants resolved from `candidate_profiles.full_name` in submission rows
-- **Sprint 4 — Data Isolation + Interviews**: `tenant_id` on demands (auto-set from creator's profile on create, backfilled); `get_my_tenant_id()` SECURITY DEFINER; recruiter RLS scoped to own tenant; HM now sees all demands in own tenant; ProcessPanel shows "View Only" badge when current role has no available transitions and status is non-terminal; `submission_interviews` table — log interviews per submission with date/type/star rating/notes; `InterviewSection` in submission detail drawer with optimistic add/delete; migrations 027+028
-- **Demand Form UX**: `DemandForm` shared client component (`src/app/dashboard/demands/demand-form.tsx`) — contract type drives end-date visibility (hidden for permanent) and budget section label (Annual Salary / Day Rate / Hourly Rate / Monthly Pay) with appropriate placeholders; both New Demand and Edit Demand pages use this component
-- **AI Test Data — Contract-Type-Aware Budget**: AI generator prompt updated — permanent: annual salary 45,000–130,000; contractor: day rate 600–1,800; freelance: hourly rate 60–180; internship: monthly 800–1,500; permanent positions leave `end_date` empty
-- **DevUserSwitcher — All Roles**: `ROLE_ORDER` now includes all 7 roles (added `procurement`, `finance`); each user row shows their tenant-configured role label in orange when it differs from the platform default (e.g. "MSP Service" for recruiter); `configuredRoleLabel` field added to `UserOption` in `DevUserSwitcher`, `Sidebar`, `SupplierSidebar`; layout.tsx fetches `tenant_roles` and builds a `(tenant_id:role_key) → label` map per user
-- **Tenant Supplier Assignments**: `tenant_suppliers` junction table `(tenant_id, supplier_id, active)` — suppliers are global but assigned per-client with an active toggle; Tenant detail page has a "Suppliers" section listing all suppliers, assign/remove buttons, and per-supplier active toggle; demand "Send to Suppliers" panel filters to only active-assigned suppliers for that demand's `tenant_id` (falls back to all suppliers for demands with no tenant); migration `20260622000030_tenant_suppliers.sql`; actions `assignSupplierToTenant`, `removeSupplierFromTenant`, `toggleTenantSupplier` in `src/lib/actions/tenants.ts`; `SuppliersSection` client component in `src/app/dashboard/settings/tenants/[id]/suppliers-section.tsx`
-- **Sprint 5 — UX + Roles**: Mobile demands filter uses native `<select>` on mobile / chip strip on sm+; sidebar brand shows active client tenant name (blue chip) from logged-in user's `tenant_id`; DevUserSwitcher shows tenant name per user; `procurement` + `finance` added to `user_role` enum and TypeScript type (migration 029) — these roles see Demands/Submissions/Awards in sidebar + appear in tenant role config and user invite form (under "Client Roles" optgroup); user creation has optional password field (auto-generates if not provided)
-- **Sprint 6 — Super Admin + Auto User Switch + Fantasy Names**: `super_admin` role above `admin` — gold "SUPER" badge + "Platform Admin" label in sidebar; access to all admin features; `get_is_admin()` SECURITY DEFINER returns true for both admin + super_admin; migrations 031 (enum) + 032 (policies); Auto user switch via Supabase admin magic link + PKCE through new `/auth/callback` route — no credentials required, fallback password `Test1234!`; AI data generators use fictional DACH fantasy company names (no real company names); session changelog emails sent to micciche.alessandro@gmail.com with testing instructions after each session; Generate Test Client button creates full client setup with all roles + users; `super_admin` added to `UserRole` TypeScript type, `ROLE_ORDER`, `assertAdmin()`, all admin guards throughout codebase
-- **Delete Client (super_admin)**: `deleteTenant()` server action — cascades demands (→ submissions, interviews, social_posts, engagements, process_history), tenant_configs, tenant_roles, tenant_suppliers; profiles.tenant_id set to null (users stay); `DeleteTenantButton` client component with type-to-confirm dialog in Danger Zone section on tenant detail (super_admin only)
-- **Super Admin Cross-Client Demands**: demands page fetches profile role; if super_admin, fetches tenant names for all demands' tenant_ids and shows a blue client chip on each demand card (RLS already allowed all demands via `get_is_admin()`)
-- **AI Test Client + Auto Suppliers + Candidates**: `generateTestTenant()` runs two AI calls — (1) company/users/suppliers, (2) 10 DACH candidates; suppliers created in `suppliers` table + assigned via `tenant_suppliers`; 10 candidates inserted into `supplier_candidates` distributed round-robin across suppliers; supplier user `profile_id` linked to first supplier company; result modal shows supplier and candidate chips; `GeneratedTenantSupplier` + `candidatesCreated` on `GeneratedTenantResult`
-- **API Call Tracking**: `src/lib/api-tracker.ts` — `trackApiCall()` fires a non-blocking Resend email to micciche.alessandro@gmail.com after every Anthropic call; includes purpose, model, input/output tokens, cost breakdown (priced at $3/$15 per 1M tokens for Sonnet 4.6); wired into AI Form Filler, Career Avatar (4 calls: CV Parse / Summary / Career Path / Skill Gaps), and Generate Test Client
+- **Auth + Roles**: 8 roles (`super_admin/admin/hiring_manager/recruiter/procurement/finance/candidate/supplier`); RLS + SECURITY DEFINER helpers; `get_is_admin()` returns true for admin+super_admin; auto user switch via magic link + PKCE (`/auth/callback`)
+- **Demands**: full CRUD; 12-status workflow (`draft/pending_review/pending_approval/sourcing/screening/award/contracting/filled/on_hold/cancelled/rejected`); skills, budget, dates, channels, `tenant_id`, `job_description_id`; sorted by `updated_at` desc; `super_admin` has full INSERT/UPDATE/DELETE via RLS + server action guards; `not-found.tsx` handles stale notification links gracefully
+- **Workflow v2**: config-driven state machine in `src/lib/workflow/index.ts`; `ProcessPanel` horizontal stepper + status badge + role-filtered action buttons + collapsible history log; `transitionDemandStatus()` logs to `process_history`, fires notifications; `tenants` + `tenant_configs` control approval levels; APPROVE/APPROVE_REVIEW/APPROVE_AWARD show optional comment textarea (`allowNote`); RETURN/REJECT/CANCEL require mandatory note (`requiresNote`); process history logs: DEMAND_CREATED, DEMAND_EDITED (review/approval/sourcing stages), SUPPLIERS_PREASSIGNED, DEMAND_SENT_TO_SUPPLIERS, AWARD_SUBMISSION, SOCIAL_POST_CREATED
+- **Suppliers**: global suppliers assigned per-tenant via `tenant_suppliers` (active toggle); `demand_suppliers` junction for sent demands; "Send to Suppliers" panel filters to tenant-active suppliers
+- **Supplier Categories**: global categories (`supplier_categories`); per-tenant active (`tenant_supplier_categories`); supplier membership (`supplier_category_members`); JD links (`jd_supplier_categories`); managed at `/dashboard/settings/supplier-categories` (super_admin)
+- **Candidates**: unified list shows `candidate_profiles` (registered) + `supplier_candidates` (supplier-uploaded); Match Pool tab with skills%/rate%/score; `computeMatch()` in `src/lib/matching.ts` (skills 70pt + rate 30pt); edit page at `/dashboard/candidates/[id]/edit` (admin/recruiter/super_admin)
+- **Career Portal**: public job board (`/careers`), apply form with CV upload + AI-generated PDF CV; graceful inactive demand page; apply form collects `proposed_rate` + `rate_type`
+- **Career Avatar & Navigator**: 4-step AI pipeline (CV parse → summary → career path → skill gaps); 12 soft skills radar chart (self vs AI); Career Navigator at `/dashboard/career-navigator`; Career Ladders per tenant; recruiter read-only view on candidate detail
+- **Engagements (Awards)**: commission candidate → creates engagement, sets submission→hired + demand→filled, emails supplier; `total_amount` + `price_locked` override; sorted by `updated_at` desc
+- **Submissions**: inbox at `/dashboard/submissions`; filter by status/source; "New" badge; `submission_interviews` table for per-submission interview log; `awardSubmission()` action moves demand → `award` + submission → `offer` at submission level (config-based: `award_msp_offer` determines recruiter vs HM can award)
+- **AI Skill Matching**: CandidateDrawer has ✨ AI Analysis button calling `analyzeSkillMatchAI()` (Claude claude-sonnet-4-6) — returns semantic match score, explanation, matched pairs with confidence/reason, missing skills. Base score uses word-overlap tokenization (better than string containment). Supplier portal shows submitted candidates per demand with rate + status.
+- **Notifications**: Supabase Realtime; bell icon with `#FF3B30` badge; 11 notification types (incl. `demand_returned`, `award_pending_approval`, `demand_approved`); dropdown above sidebar; sidebar badge counts per role: `pendingReviewCount` (purple, recruiter), `pendingApprovalCount` (orange), `pendingAwardCount` (green), `demandReturnedCount` (red, HM)
+- **Social Media**: posts per demand (Instagram/Facebook/LinkedIn/TikTok/X); dark 1080×1080 canvas with QR code; status workflow draft→approved→posted; overview at `/dashboard/social-media`
+- **Tenant Management**: multi-tenant isolation — admin/recruiter scoped to own tenant, super_admin sees all; `tenant_roles` for label overrides; org units + JDs + supplier categories per tenant; user invite/edit/remove in tenant config; `deleteTenant()` cascades all data
+- **Org Units + Job Descriptions**: per-tenant org units; JD templates pre-fill demand creation form; JD picker with live search + org unit filter; `demands.job_description_id` saved; auto-assign suppliers on transition to `sourcing` via JD→supplier category chain
+- **Generate Test Client**: 4 AI calls — company+users+suppliers+categories → candidates → career ladders → org units+JDs; avoids existing tenant names; links suppliers to categories; auto-assigns org units to users; result modal shows all counts
+- **Dev Tools**: `DevDataGenerator` (✨ button) — AI form filler, context-aware; `DevUserSwitcher` — 3-step flow (role → client for supplier → user); all 8 roles; shows tenant-configured label; auto user switch via magic link
+- **API Call Tracking**: `src/lib/api-tracker.ts` — non-blocking Resend email after every Anthropic call with token counts + cost
+- **Mobile Workflow**: iPhone SSH via Termius + Tailscale (100.111.139.5); Claude Code CLI on subscription billing (Sonnet 4.6); `SESSION_LOG.md` shared between sessions
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
@@ -83,10 +94,28 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 ## Database Schema
 
 ### `profiles`
-`id` (uuid, FK auth.users), `email`, `full_name`, `role` (enum: admin/hiring_manager/recruiter/candidate/supplier), `created_at`
+`id` (uuid, FK auth.users), `email`, `full_name`, `role` (enum: admin/hiring_manager/recruiter/candidate/supplier), `tenant_id` (FK tenants), `org_unit_id` (FK org_units — for HM/procurement/finance pre-filtering), `created_at`
 
 ### `demands`
-`id`, `title`, `description`, `skills` (text[]), `status` (draft/open/closed/cancelled), `budget_min`, `budget_max`, `start_date`, `end_date`, `location`, `channels` (text[]), `tenant_id` (FK tenants — nullable, auto-set from creator's profile), `created_by` (FK profiles), `created_at`
+`id`, `title`, `description`, `skills` (text[]), `status` (draft/open/closed/cancelled), `budget_min`, `budget_max`, `start_date`, `end_date`, `location`, `channels` (text[]), `tenant_id` (FK tenants — nullable, auto-set from creator's profile), `job_description_id` (FK job_descriptions — nullable, set when JD template used), `created_by` (FK profiles), `created_at`
+
+### `org_units`
+`id`, `tenant_id` (FK tenants), `name`, `description`, `active` (bool), `position` (int, sort order), `created_at`
+
+### `job_descriptions`
+`id`, `tenant_id` (FK tenants), `org_unit_id` (FK org_units), `title`, `description`, `skills` (text[]), `contract_type`, `budget_min`, `budget_max`, `experience_years`, `seniority_level`, `location`, `remote_allowed` (bool), `languages` (text[]), `active` (bool), `created_at`, `updated_at`
+
+### `supplier_categories`
+`id`, `name`, `description`, `active` (bool), `created_at` — global (no tenant FK)
+
+### `tenant_supplier_categories` (junction)
+`id`, `tenant_id` (FK tenants), `supplier_category_id` (FK supplier_categories); UNIQUE `(tenant_id, supplier_category_id)`
+
+### `supplier_category_members` (junction)
+`id`, `supplier_id` (FK suppliers), `supplier_category_id` (FK supplier_categories); UNIQUE `(supplier_id, supplier_category_id)`
+
+### `jd_supplier_categories` (junction)
+`id`, `job_description_id` (FK job_descriptions), `supplier_category_id` (FK supplier_categories); UNIQUE `(job_description_id, supplier_category_id)`
 
 ### `suppliers`
 `id`, `company_name`, `email`, `phone`, `contact_person`, `active`, `created_at`
@@ -157,6 +186,11 @@ Avatar fields: `avatar_visible_to_recruiters` (bool), `career_goals`, `preferred
 | `20260622000031_super_admin_enum.sql` | ADD `super_admin` to `user_role` enum |
 | `20260622000032_super_admin_policies.sql` | `get_is_admin()` SECURITY DEFINER; updated demands_select, tenant_suppliers, submission_interviews, notifications RLS |
 | `20260622000030_tenant_suppliers.sql` | `tenant_suppliers` table — per-tenant supplier assignment with `active` toggle; RLS: admin full / recruiter+HM read |
+| `20260623000033_tenant_isolation_v2.sql` | Rewritten `demands_select`, `cs_select`, `eng_select` RLS: super_admin sees all; admin/recruiter scoped to tenant when set; HM/procurement/finance scoped to own tenant |
+| `20260623000034_career_ladders_tenant.sql` | `tenant_id` FK on `career_ladders`; deletes global seeded ladders (no tenant); scoped `cl_select/insert/update/delete` policies |
+| `20260623000035_job_descriptions_org_units.sql` | `org_units` + `job_descriptions` + `supplier_categories` + `tenant_supplier_categories` + `supplier_category_members` + `jd_supplier_categories` tables; `profiles.org_unit_id` FK; `demands.job_description_id` FK; RLS on all new tables |
+| `20260624000036_super_admin_demands_write.sql` | `demands_insert/update/delete` policies updated to include `super_admin`; purges stale notifications pointing to deleted demands |
+| `20260625000038_notification_enhancements.sql` | ADD `demand_returned`, `award_pending_approval`, `demand_approved` to `notification_type` enum |
 
 ## Storage Buckets
 Both buckets are **private** (RLS-protected), max 10 MB, PDF only.
@@ -190,7 +224,8 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | `/dashboard/demands/[id]/edit` | Edit demand |
 | `/dashboard/demands/[id]/submissions` | Full submissions view |
 | `/dashboard/candidates` | Candidates list (admin/recruiter only) |
-| `/dashboard/candidates/[id]` | Candidate detail |
+| `/dashboard/candidates/[id]` | Candidate detail — "Edit" button visible to admin/recruiter/super_admin |
+| `/dashboard/candidates/[id]/edit` | Edit candidate profile (admin/recruiter/super_admin only) |
 | `/dashboard/suppliers` | Suppliers list (admin/recruiter only) |
 | `/dashboard/suppliers/new` | Create supplier |
 | `/dashboard/suppliers/[id]/edit` | Edit supplier |
@@ -204,8 +239,9 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | `/dashboard/career-ladders/[id]` | Edit career ladder + steps |
 | `/dashboard/social-media` | All social posts across all demands — filter by platform/status, full management (admin/recruiter only) |
 | `/dashboard/submissions` | All submissions inbox — sorted by submitted_at, filter by status/source, "New" badge (admin/recruiter/hiring_manager) |
-| `/dashboard/settings/tenants` | Tenant list + create form (admin only) |
-| `/dashboard/settings/tenants/[id]` | Tenant detail — edit name/slug/active + workflow config (admin only) |
+| `/dashboard/settings/tenants` | Tenant list + create form (super_admin only; admin redirected to own tenant) |
+| `/dashboard/settings/tenants/[id]` | Tenant detail — edit name/slug/active + workflow config + org units + job descriptions + supplier categories + user org unit assignment (admin/super_admin) |
+| `/dashboard/settings/supplier-categories` | Global supplier categories management — create/edit/delete + assign suppliers per category (super_admin only) |
 
 ### Supplier Portal (protected, supplier role)
 | Route | Description |

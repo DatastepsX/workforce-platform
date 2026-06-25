@@ -57,6 +57,23 @@ Each session appends an entry at the end.
 - Investigated: Issue 5 (only Performa Talent in switcher) — correct, other suppliers have no profile_id. Issue 6 (supplier sees no requirements) — Velotherm GmbH has zero demands in DB; user was switching to wrong Performa Talent (GmbH vs SE). No code fix needed.
 - Next: no pending tasks.
 
+### 2026-06-25 (2) — [VSCode]
+- Built: 15 UX improvements for Velantrix Antriebstechnik SE fresh client
+- Issue 1/3/6: New notification types (demand_returned, award_pending_approval, demand_approved) + firing logic in workflow.ts; pendingAwardCount + demandReturnedCount badge in sidebar; bell icons for new types in NotificationsBell
+- Issue 2: Social post generation logs SOCIAL_POST_CREATED to process_history
+- Issue 4: HM + procurement/finance can assign suppliers during pending_approval stage (assignSuppliersForReview updated)
+- Issue 5: History label renamed to 'Reviewed by MSP' (was 'Approved by MSP')
+- Issue 7: Optional comment field for APPROVE/APPROVE_REVIEW was already wired via allowNote flag — confirmed working
+- Issue 8: updateDemand logs DEMAND_EDITED to process_history for review/approval/sourcing/screening stages
+- Issue 9: sendToSuppliers already logs DEMAND_SENT_TO_SUPPLIERS; confirmed
+- Issue 11: Supplier portal shows submitted candidates per demand (rate, status, headline) fetched from candidate_submissions; submit button hidden when not sourcing
+- Issue 12: Supply submit locked at non-sourcing status — confirmed from previous session
+- Issue 13: Award action moved from demand-level ProcessPanel (AWARD_CANDIDATE removed from screening transitions) to submission-level AwardPanel in CandidateDrawer; calls new awardSubmission server action
+- Issue 14: Improved fuzzy/word-overlap skill matching (tokenize + word-level match); AI Analysis button in CandidateDrawer calls analyzeSkillMatchAI (Claude claude-sonnet-4-6) for semantic matching with matched pairs + explanations
+- Issue 15: award_msp_offer config flag enforced: recruiter awards when true, HM awards when false; admin/super_admin always can award
+- Deployed to production (Vercel CLI --prod)
+- Next: run migration 20260625000038_notification_enhancements.sql in Supabase SQL editor
+
 ### 2026-06-25 — [VSCode]
 - Wiped: all existing tenants (Krautfeld SE, Velotherm GmbH, Velotherm SE), all 15 suppliers, all supplier categories, demands, org units, JDs, career ladders, notifications.
 - Deleted: all 44 test auth users via `DELETE FROM auth.users` (kept only super_admin: micciche.alessandro+admin@gmail.com, ID 9d0f6cb3).
