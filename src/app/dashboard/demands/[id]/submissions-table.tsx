@@ -3,12 +3,25 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { CandidateSubmission, SubmissionStatus, SubmissionInterview, UserRole } from '@/types/database';
 import { SubmissionsTableClient, type SubmissionRow } from './submissions-table-client';
 
+function tokenize(s: string): string[] {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+
+function skillSimilarity(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  const ta = tokenize(a);
+  const tb = tokenize(b);
+  const shared = ta.filter(w => w.length > 2 && tb.includes(w));
+  return shared.length > 0;
+}
+
 function matchScore(candidateSkills: string[], demandSkills: string[]): number | null {
   if (!demandSkills.length) return null;
-  if (!candidateSkills.length) return 0;
+  if (!candidateSkills.length) return null;
   const demandLower = demandSkills.map(s => s.toLowerCase());
-  const hits = candidateSkills.filter(cs =>
-    demandLower.some(d => d.includes(cs.toLowerCase()) || cs.toLowerCase().includes(d))
+  const hits = demandLower.filter(d =>
+    candidateSkills.some(cs => skillSimilarity(cs.toLowerCase(), d))
   );
   return Math.round((hits.length / demandSkills.length) * 100);
 }
@@ -16,7 +29,7 @@ function matchScore(candidateSkills: string[], demandSkills: string[]): number |
 function matchedSkills(candidateSkills: string[], demandSkills: string[]): string[] {
   const demandLower = demandSkills.map(s => s.toLowerCase());
   return candidateSkills.filter(cs =>
-    demandLower.some(d => d.includes(cs.toLowerCase()) || cs.toLowerCase().includes(d))
+    demandLower.some(d => skillSimilarity(cs.toLowerCase(), d))
   );
 }
 
@@ -34,10 +47,12 @@ interface Props {
   demandStartDate: string;
   demandEndDate: string;
   contractType: string;
+  demandStatus: string;
   role: UserRole;
+  canAward: boolean;
 }
 
-export async function SubmissionsTable({ demandId, demandSkills, demandTitle, demandStartDate, demandEndDate, contractType, role }: Props) {
+export async function SubmissionsTable({ demandId, demandSkills, demandTitle, demandStartDate, demandEndDate, contractType, demandStatus, role, canAward }: Props) {
   const supabase = await createClient();
   const admin = createAdminClient();
 
@@ -50,7 +65,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
   if (!rawSubs?.length) {
     return (
       <SubmissionsTableClient rows={[]} demandSkills={demandSkills} role={role}
-        demandTitle={demandTitle} demandStartDate={demandStartDate} demandEndDate={demandEndDate} contractType={contractType} />
+        demandTitle={demandTitle} demandStartDate={demandStartDate} demandEndDate={demandEndDate} contractType={contractType} demandStatus={demandStatus} canAward={canAward} />
     );
   }
 
@@ -177,6 +192,8 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
       demandStartDate={demandStartDate}
       demandEndDate={demandEndDate}
       contractType={contractType}
+      demandStatus={demandStatus}
+      canAward={canAward}
     />
   );
 }

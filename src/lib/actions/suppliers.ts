@@ -139,6 +139,56 @@ export async function deleteSupplier(formData: FormData) {
   redirect('/dashboard/suppliers');
 }
 
+// Pre-assign suppliers during MSP review (no email — demand not yet approved)
+export async function assignSuppliersForReview(demandId: string, supplierIds: string[]) {
+  if (!supplierIds.length) return;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single();
+  const role = profile?.role ?? '';
+
+  const admin = createAdminClient();
+  const { data: demand } = await admin.from('demands').select('status, created_by').eq('id', demandId).single();
+  if (!demand) throw new Error('Demand not found');
+
+  const allowedStatuses = ['pending_review', 'pending_approval'];
+  if (!allowedStatuses.includes(demand.status)) throw new Error('Cannot assign suppliers at this stage');
+
+  const isRecruiterOrAdmin = ['super_admin', 'admin', 'recruiter'].includes(role);
+  const isHM = role === 'hiring_manager' && demand.created_by === user.id;
+  const isApprover = ['procurement', 'finance'].includes(role) && demand.status === 'pending_approval';
+  if (!isRecruiterOrAdmin && !isHM && !isApprover) throw new Error('Not authorized');
+
+  const { error } = await admin.from('demand_suppliers').insert(
+    supplierIds.map(sid => ({
+      demand_id: demandId,
+      supplier_id: sid,
+      status: 'preassigned' as DemandSupplierStatus,
+    })),
+  );
+  if (error) throw new Error(error.message);
+
+  try {
+    const { data: senderProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+    const { data: assignedSuppliers } = await admin.from('suppliers').select('company_name').in('id', supplierIds);
+    const names = (assignedSuppliers ?? []).map((s: { company_name: string }) => s.company_name).join(', ');
+    await admin.from('process_history').insert({
+      demand_id: demandId,
+      to_status: demand.status,
+      action: 'SUPPLIERS_PREASSIGNED',
+      actor_id: user.id,
+      actor_role: senderProfile?.role ?? null,
+      actor_name: senderProfile?.full_name || senderProfile?.email || null,
+      notes: `Pre-assigned: ${names}`,
+    });
+  } catch { /* non-blocking */ }
+
+  revalidatePath(`/dashboard/demands/${demandId}`);
+}
+
 export async function sendToSuppliers(
   demandId: string,
   supplierIds: string[],
@@ -153,31 +203,49 @@ export async function sendToSuppliers(
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const role = profile?.role;
 
-  if (!['admin', 'recruiter', 'hiring_manager'].includes(role ?? '')) throw new Error('Not authorized');
+  if (!['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role ?? '')) throw new Error('Not authorized');
+
+  // Use admin client to read demand + insert (bypass RLS restrictions on demand_suppliers)
+  const admin = createAdminClient();
+  const { data: demand } = await admin.from('demands').select('created_by, status').eq('id', demandId).single();
+  if (!demand) throw new Error('Demand not found');
 
   // Hiring managers may only send their own demands
-  if (role === 'hiring_manager') {
-    const { data: demand } = await supabase.from('demands').select('created_by').eq('id', demandId).single();
-    if (demand?.created_by !== user.id) throw new Error('Not authorized');
+  if (role === 'hiring_manager' && demand.created_by !== user.id) throw new Error('Not authorized');
+
+  if (demand.status !== 'sourcing') {
+    throw new Error('This demand is not yet open for sourcing. Complete the review and approval steps before sending it to suppliers.');
   }
 
-  // Use admin client for the insert to bypass RLS restrictions on demand_suppliers
-  const admin = createAdminClient();
-  const { error } = await admin.from('demand_suppliers').insert(
-    supplierIds.map(sid => ({
-      demand_id: demandId,
-      supplier_id: sid,
-      status: 'sent' as DemandSupplierStatus,
-      deadline: deadline || null,
-    })),
-  );
+  // Separate new suppliers from previously pre-assigned ones (upsert pre-assigned to 'sent')
+  const { data: existing } = await admin.from('demand_suppliers')
+    .select('supplier_id, status')
+    .eq('demand_id', demandId)
+    .in('supplier_id', supplierIds);
+  const existingMap = new Map((existing ?? []).map((e: { supplier_id: string; status: string }) => [e.supplier_id, e.status]));
+  const toInsert = supplierIds.filter(sid => !existingMap.has(sid));
+  const toActivate = supplierIds.filter(sid => existingMap.get(sid) === 'preassigned');
 
-  if (error) throw new Error(error.message);
+  if (toInsert.length) {
+    const { error } = await admin.from('demand_suppliers').insert(
+      toInsert.map(sid => ({ demand_id: demandId, supplier_id: sid, status: 'sent' as DemandSupplierStatus, deadline: deadline || null })),
+    );
+    if (error) throw new Error(error.message);
+  }
+  if (toActivate.length) {
+    await admin.from('demand_suppliers')
+      .update({ status: 'sent' as DemandSupplierStatus, deadline: deadline || null })
+      .eq('demand_id', demandId)
+      .in('supplier_id', toActivate);
+  }
+
+  const allHandled = [...toInsert, ...toActivate];
+  if (!allHandled.length) return;
 
   // Log to process history
   try {
     const { data: senderProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
-    const { data: sentSuppliers } = await admin.from('suppliers').select('company_name').in('id', supplierIds);
+    const { data: sentSuppliers } = await admin.from('suppliers').select('company_name').in('id', allHandled);
     const supplierNames = (sentSuppliers ?? []).map((s: { company_name: string }) => s.company_name).join(', ');
     await admin.from('process_history').insert({
       demand_id: demandId,
@@ -195,7 +263,7 @@ export async function sendToSuppliers(
     const { data: demand } = await admin.from('demands').select('title').eq('id', demandId).single();
     const { data: suppliers } = await admin.from('suppliers')
       .select('id, email, contact_name, company_name')
-      .in('id', supplierIds);
+      .in('id', allHandled);
 
     if (demand && suppliers) {
       for (const s of suppliers) {
@@ -212,7 +280,7 @@ export async function sendToSuppliers(
       const { data: supplierProfiles } = await admin
         .from('suppliers')
         .select('profile_id')
-        .in('id', supplierIds)
+        .in('id', allHandled)
         .not('profile_id', 'is', null);
       const profileIds = (supplierProfiles ?? [])
         .map((s: { profile_id: string | null }) => s.profile_id)

@@ -73,6 +73,7 @@ export interface TransitionDef {
   toApprovalLevel?: number | null;
   allowedRoles: UserRole[];
   requiresNote?: boolean;
+  allowNote?: boolean;
   isDangerous?: boolean;
   description?: string;
 }
@@ -141,6 +142,7 @@ function allTransitions(
           toStatus,
           toApprovalLevel: toStatus === 'pending_approval' ? 1 : null,
           allowedRoles: ['recruiter', 'admin'],
+          allowNote: true,
           description: 'Demand passes MSP review',
         },
         {
@@ -180,6 +182,7 @@ function allTransitions(
           toStatus: nextStatus,
           toApprovalLevel: nextLevel,
           allowedRoles: approveRoles,
+          allowNote: true,
           description: isLastLevel ? 'Final approval — demand goes live to suppliers' : 'Approve and forward to next approver',
         },
         {
@@ -218,14 +221,6 @@ function allTransitions(
     case 'screening':
       return [
         {
-          action: 'AWARD_CANDIDATE',
-          label: 'Award Candidate',
-          toStatus: 'award',
-          toApprovalLevel: config.award_approval_levels > 0 ? 1 : null,
-          allowedRoles: ['recruiter', 'admin', 'hiring_manager'],
-          description: 'Candidate selected — start award & approval process',
-        },
-        {
           action: 'BACK_TO_SOURCING',
           label: 'Back to Sourcing',
           toStatus: 'sourcing',
@@ -256,6 +251,7 @@ function allTransitions(
           toStatus: nextStatus,
           toApprovalLevel: nextLevel,
           allowedRoles: awardApproveRoles,
+          allowNote: true,
           description: 'Approve the award and move forward',
         },
         ...universalDanger,
@@ -311,10 +307,34 @@ export function isPubliclyVisible(status: DemandStatus): boolean {
   return ACTIVE_SOURCING_STATUSES.includes(status);
 }
 
+const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  admin: 'Admin',
+  super_admin: 'Platform Admin',
+  hiring_manager: 'Hiring Manager',
+  recruiter: 'MSP Recruiter',
+  procurement: 'Procurement',
+  finance: 'Finance',
+};
+
 // Human-readable label for next actor on a demand (for ProcessPanel)
-export function getNextActorLabel(status: DemandStatus, config: TenantConfig): string | null {
+export function getNextActorLabel(status: DemandStatus, config: TenantConfig, approvalLevel?: number | null): string | null {
   if (status === 'pending_review') return config.demand_msp_review ? 'MSP Recruiter' : null;
-  if (status === 'pending_approval') return `Approver (L${config.demand_approval_levels})`;
-  if (status === 'award') return config.award_approval_levels > 0 ? `Approver (L${config.award_approval_levels})` : 'MSP Recruiter';
+  if (status === 'pending_approval') {
+    const level = approvalLevel ?? 1;
+    const roleKey = `demand_approval_role_l${level}` as keyof TenantConfig;
+    const role = config[roleKey] as string | null;
+    const roleLabel = role ? (ROLE_DISPLAY_NAMES[role] ?? role) : 'Approver';
+    return config.demand_approval_levels > 1 ? `${roleLabel} (L${level})` : roleLabel;
+  }
+  if (status === 'award') {
+    if (config.award_approval_levels > 0) {
+      const level = approvalLevel ?? 1;
+      const roleKey = `award_approval_role_l${level}` as keyof TenantConfig;
+      const role = config[roleKey] as string | null;
+      const roleLabel = role ? (ROLE_DISPLAY_NAMES[role] ?? role) : 'Approver';
+      return config.award_approval_levels > 1 ? `${roleLabel} (L${level})` : roleLabel;
+    }
+    return 'MSP Recruiter';
+  }
   return STATUS_NEXT_ACTOR[status] ?? null;
 }

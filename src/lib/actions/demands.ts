@@ -57,6 +57,7 @@ export async function createDemand(formData: FormData) {
     status: 'draft' as DemandStatus,
     created_by: user.id,
     tenant_id: tenantId,
+    job_description_id: (formData.get('job_description_id') as string) || null,
   }).select().single();
 
   if (error) throw new Error(error.message);
@@ -77,11 +78,11 @@ export async function createDemand(formData: FormData) {
     });
   } catch { /* non-blocking */ }
 
-  // Notify all recruiters/admins (except the creator) about new demand
+  // Notify recruiters/admins in the same tenant about new demand
   try {
     const adminDb = createAdminClient();
     const { data: targets } = await adminDb
-      .from('profiles').select('id').in('role', ['recruiter', 'admin']);
+      .from('profiles').select('id').in('role', ['recruiter', 'admin']).eq('tenant_id', tenantId);
     const ids = (targets ?? []).map(r => r.id).filter(id => id !== user.id);
     if (ids.length) {
       await createNotifications({
@@ -105,13 +106,19 @@ export async function updateDemand(formData: FormData) {
   if (!user) redirect('/login');
 
   const id = formData.get('id') as string;
+  const adminDb = createAdminClient();
 
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single();
-  const { data: demand } = await supabase
-    .from('demands').select('created_by').eq('id', id).single();
+  const [{ data: profile }, { data: demand }] = await Promise.all([
+    adminDb.from('profiles').select('role').eq('id', user.id).single(),
+    adminDb.from('demands').select('created_by, status').eq('id', id).single(),
+  ]);
+
+  const isApproverEdit = ['procurement', 'finance'].includes(profile?.role ?? '') &&
+    demand?.status === 'pending_approval';
   const canEdit =
-    demand?.created_by === user.id || ['admin', 'recruiter'].includes(profile?.role ?? '');
+    demand?.created_by === user.id ||
+    ['admin', 'recruiter', 'super_admin'].includes(profile?.role ?? '') ||
+    isApproverEdit;
   if (!canEdit) redirect('/dashboard/demands');
 
   const skills = (formData.get('skills') as string)
@@ -119,7 +126,10 @@ export async function updateDemand(formData: FormData) {
 
   const channels = formData.getAll('channels') as string[];
 
-  const { error } = await supabase.from('demands').update({
+  // Use admin client for approver roles not covered by standard RLS
+  const dbClient = isApproverEdit ? adminDb : supabase;
+
+  const { error } = await dbClient.from('demands').update({
     title: formData.get('title') as string,
     description: (formData.get('description') as string) || null,
     contract_type: formData.get('contract_type') as ContractType,
@@ -136,6 +146,24 @@ export async function updateDemand(formData: FormData) {
   }).eq('id', id);
 
   if (error) throw new Error(error.message);
+
+  // Log edit to process history when demand is in a review/approval stage
+  try {
+    if (['pending_review', 'pending_approval', 'sourcing', 'screening'].includes(demand?.status ?? '')) {
+      const { data: editorProfile } = await adminDb.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+      await adminDb.from('process_history').insert({
+        demand_id: id,
+        to_status: demand?.status ?? null,
+        action: 'DEMAND_EDITED',
+        actor_id: user.id,
+        actor_role: (editorProfile as { role: string } | null)?.role ?? null,
+        actor_name: (editorProfile as { full_name: string | null; email: string | null } | null)?.full_name
+          || (editorProfile as { full_name: string | null; email: string | null } | null)?.email || null,
+        notes: null,
+      });
+    }
+  } catch { /* non-blocking */ }
+
   revalidatePath(`/dashboard/demands/${id}`);
   revalidatePath('/dashboard/demands');
   redirect(`/dashboard/demands/${id}`);
@@ -148,7 +176,7 @@ export async function deleteDemand(formData: FormData) {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') redirect('/dashboard/demands');
+  if (!['admin', 'super_admin'].includes(profile?.role ?? '')) redirect('/dashboard/demands');
 
   const id = formData.get('id') as string;
   await supabase.from('demand_suppliers').delete().eq('demand_id', id);

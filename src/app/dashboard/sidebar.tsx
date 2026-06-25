@@ -32,6 +32,7 @@ interface SidebarProps {
   displayName: string;
   initial: string;
   role: string;
+  tenantId: string | null;
   tenantName: string | null;
   canSeeDemands: boolean;
   newDemandsCount: number;
@@ -40,6 +41,9 @@ interface SidebarProps {
   newSubmissionsCount: number;
   newEngagementsCount: number;
   pendingApprovalCount: number;
+  pendingReviewCount: number;
+  pendingAwardCount: number;
+  demandReturnedCount: number;
   notifications: Notification[];
   userId: string;
   signOut: () => Promise<void>;
@@ -47,7 +51,7 @@ interface SidebarProps {
   allUsers: UserOption[];
 }
 
-export function Sidebar({ displayName, initial, role, tenantName, canSeeDemands, newDemandsCount, newSuppliersCount, newCandidatesCount, newSubmissionsCount, newEngagementsCount, pendingApprovalCount, notifications, userId, signOut, switchToUser, allUsers }: SidebarProps) {
+export function Sidebar({ displayName, initial, role, tenantId, tenantName, canSeeDemands, newDemandsCount, newSuppliersCount, newCandidatesCount, newSubmissionsCount, newEngagementsCount, pendingApprovalCount, pendingReviewCount, pendingAwardCount, demandReturnedCount, notifications, userId, signOut, switchToUser, allUsers }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -55,12 +59,22 @@ export function Sidebar({ displayName, initial, role, tenantName, canSeeDemands,
   return (
     <>
       {/* ── Mobile top bar ───────────────────────────── */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-30 h-14 bg-white border-b border-[#E5E5EA] flex items-center justify-between px-4">
-        <span className="text-[17px] font-bold tracking-tight text-black">WorkforceX</span>
+      <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-white border-b border-[#E5E5EA] flex items-center justify-between px-4 py-2" style={{ minHeight: '52px' }}>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[16px] font-bold tracking-tight text-black leading-tight">WorkforceX</span>
+            {role === 'super_admin' && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md tracking-wide" style={{ backgroundColor: '#FF9500', color: '#fff' }}>SUPER</span>
+            )}
+          </div>
+          <p className="text-[10px] text-[#8E8E93] leading-tight truncate">
+            {displayName.split(' ')[0]}{' · '}{ROLE_LABELS[role] ?? role}
+          </p>
+        </div>
         <button
           onClick={() => setOpen(true)}
           aria-label="Open menu"
-          className="p-2 -mr-1 text-black"
+          className="p-2 -mr-1 text-black flex-shrink-0"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
             <path d="M3 6h18M3 12h18M3 18h18" />
@@ -138,9 +152,24 @@ export function Sidebar({ displayName, initial, role, tenantName, canSeeDemands,
                 <path d="M9 12h6M9 16h4" />
               </svg>
               <span className="flex-1">Demands</span>
+              {pendingReviewCount > 0 && (
+                <span className="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#5856D6' }}>
+                  {pendingReviewCount > 99 ? '99+' : pendingReviewCount}
+                </span>
+              )}
               {pendingApprovalCount > 0 && (
                 <span className="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#FF9500' }}>
                   {pendingApprovalCount > 99 ? '99+' : pendingApprovalCount}
+                </span>
+              )}
+              {pendingAwardCount > 0 && (
+                <span className="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#34C759' }}>
+                  {pendingAwardCount > 99 ? '99+' : pendingAwardCount}
+                </span>
+              )}
+              {demandReturnedCount > 0 && (
+                <span className="ml-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#FF3B30' }}>
+                  {demandReturnedCount > 99 ? '99+' : demandReturnedCount}
                 </span>
               )}
               {newDemandsCount > 0 && (
@@ -254,25 +283,34 @@ export function Sidebar({ displayName, initial, role, tenantName, canSeeDemands,
           )}
 
           {(isAdmin(role) || role === 'recruiter') && (
-            <NavLink href="/dashboard/career-ladders">
-              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-              </svg>
-              Career Ladders
-            </NavLink>
-          )}
-
-          {isAdmin(role) && (
             <div className="pt-2 mt-2 border-t border-[#F2F2F7]">
               <p className="px-3 pt-1 pb-1.5 text-[10px] font-semibold text-[#C7C7CC] uppercase tracking-[0.8px]">Settings</p>
-              <NavLink href="/dashboard/settings/tenants">
-                <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="3" width="20" height="14" rx="2" />
-                  <path d="M8 21h8M12 17v4" />
-                </svg>
-                Tenants
-              </NavLink>
+              {role === 'super_admin' ? (
+                <>
+                  <NavLink href="/dashboard/settings/tenants">
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <path d="M8 21h8M12 17v4" />
+                    </svg>
+                    Clients
+                  </NavLink>
+                  <NavLink href="/dashboard/settings/supplier-categories">
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 6h16M4 12h16M4 18h7" />
+                      <circle cx="17" cy="18" r="3" />
+                    </svg>
+                    Supplier Categories
+                  </NavLink>
+                </>
+              ) : tenantId ? (
+                <NavLink href={`/dashboard/settings/tenants/${tenantId}`}>
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                    <path d="M8 21h8M12 17v4" />
+                  </svg>
+                  Client Config
+                </NavLink>
+              ) : null}
             </div>
           )}
 

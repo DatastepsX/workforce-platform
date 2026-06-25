@@ -17,13 +17,15 @@ interface Props {
 const HISTORY_ACTION_LABELS: Record<string, string> = {
   DEMAND_CREATED:           'Demand created',
   DEMAND_SENT_TO_SUPPLIERS: 'Sent to suppliers',
+  DEMAND_EDITED:            'Demand updated',
   SUBMIT:                   'Submitted for review',
-  APPROVE_REVIEW:           'Approved by MSP',
+  APPROVE_REVIEW:           'Reviewed by MSP',
   RETURN:                   'Returned for revision',
   REJECT:                   'Rejected',
   APPROVE:                  'Approved',
   START_SCREENING:          'Screening started',
   AWARD_CANDIDATE:          'Candidate awarded',
+  AWARD_SUBMISSION:         'Candidate selected for award',
   BACK_TO_SOURCING:         'Back to sourcing',
   APPROVE_AWARD:            'Award approved',
   CONFIRM_PO:               'PO confirmed — Filled',
@@ -39,6 +41,9 @@ const HISTORY_ACTION_LABELS: Record<string, string> = {
   SUBMISSION_OFFER:         'Offer made',
   SUBMISSION_REJECTED:      'Candidate rejected',
   SUBMISSION_HIRED:         'Candidate hired',
+  SUPPLIERS_PREASSIGNED:    'Suppliers pre-assigned',
+  SOCIAL_POST_CREATED:      'Social post created',
+  SOCIAL_POST_APPROVED:     'Social post approved',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -73,6 +78,11 @@ const ACTION_ICONS: Record<string, string> = {
   SUBMISSION_OFFER:         '◎',
   SUBMISSION_REJECTED:      '✕',
   SUBMISSION_HIRED:         '★',
+  AWARD_SUBMISSION:         '★',
+  DEMAND_EDITED:            '✎',
+  SUPPLIERS_PREASSIGNED:    '→',
+  SOCIAL_POST_CREATED:      '◎',
+  SOCIAL_POST_APPROVED:     '✓',
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -97,6 +107,11 @@ const ACTION_COLORS: Record<string, string> = {
   SUBMISSION_OFFER:         '#FF9500',
   SUBMISSION_REJECTED:      '#FF3B30',
   SUBMISSION_HIRED:         '#34C759',
+  AWARD_SUBMISSION:         '#34C759',
+  DEMAND_EDITED:            '#8E8E93',
+  SUPPLIERS_PREASSIGNED:    '#5856D6',
+  SOCIAL_POST_CREATED:      '#5856D6',
+  SOCIAL_POST_APPROVED:     '#34C759',
 };
 
 function fmtRelative(iso: string) {
@@ -138,12 +153,12 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
   const terminal = isTerminal(status);
   const phases = visiblePhases(config);
   const currentIdx = phaseIndex(status, phases);
-  const nextActor = !terminal ? getNextActorLabel(status, config) : null;
+  const nextActor = !terminal ? getNextActorLabel(status, config, approvalLevel) : null;
 
   function handleAction(action: string) {
     const t = transitions.find(tr => tr.action === action);
     if (!t) return;
-    if (t.requiresNote) {
+    if (t.requiresNote || t.allowNote) {
       setActiveAction(action);
       setNoteText('');
       setError('');
@@ -264,20 +279,20 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
         </div>
 
         {/* Note input */}
-        {activeAction && pendingTransition?.requiresNote && (
+        {activeAction && (pendingTransition?.requiresNote || pendingTransition?.allowNote) && (
           <div className="bg-[#F2F2F7] rounded-[12px] p-3 mb-2 space-y-2.5">
             <p className="text-[12px] font-semibold text-black">{pendingTransition.label}</p>
             <textarea
               rows={2}
               className="w-full bg-white rounded-[8px] border border-[#E5E5EA] px-3 py-2 text-[13px] resize-none outline-none focus:border-[#007AFF] transition-colors"
-              placeholder="Enter a note…"
+              placeholder={pendingTransition.requiresNote ? 'Enter a note (required)…' : 'Add a comment (optional)…'}
               value={noteText}
               onChange={e => setNoteText(e.target.value)}
             />
             <div className="flex gap-1.5">
               <button
-                onClick={() => execute(activeAction, noteText)}
-                disabled={pending || !noteText.trim()}
+                onClick={() => execute(activeAction, noteText || undefined)}
+                disabled={pending || (!!pendingTransition?.requiresNote && !noteText.trim())}
                 className="px-3 py-1.5 bg-[#007AFF] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#0066DD] disabled:opacity-40 transition-colors"
               >
                 Confirm

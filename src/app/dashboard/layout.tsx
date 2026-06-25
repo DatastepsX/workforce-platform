@@ -96,6 +96,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     { count: newEngagementsCount },
     { data: notificationsData },
     { count: pendingApprovalCount },
+    { count: pendingReviewCount },
+    { count: pendingAwardCount },
+    { count: demandReturnedCount },
   ] = await Promise.all([
     profilesClient.from('profiles').select('id, role, full_name, email, tenant_id').order('role'),
     profilesClient.from('suppliers').select('profile_id, company_name').not('profile_id', 'is', null),
@@ -105,12 +108,28 @@ export default async function DashboardLayout({ children }: { children: React.Re
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'supplier_created').is('read_at', null),
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'engagement_created').is('read_at', null),
     supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
-    // Pending approval badge: super_admin/admin sees all, hiring_manager sees own demands
-    ['super_admin', 'admin', 'hiring_manager'].includes(role)
-      ? ['super_admin', 'admin'].includes(role)
-        ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval')
-        : supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval').eq('created_by', user.id)
+    // Pending approval badge: super_admin/admin sees all; HM sees own; procurement/finance see tenant
+    ['super_admin', 'admin'].includes(role)
+      ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval')
+      : role === 'hiring_manager'
+      ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval').eq('created_by', user.id)
+      : ['procurement', 'finance'].includes(role) && p?.tenant_id
+      ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval').eq('tenant_id', p.tenant_id)
       : Promise.resolve({ count: 0 }),
+    // Pending review badge: recruiter/admin sees demands in their tenant awaiting MSP review
+    ['super_admin', 'admin', 'recruiter'].includes(role)
+      ? p?.tenant_id
+        ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_review').eq('tenant_id', p.tenant_id)
+        : supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_review')
+      : Promise.resolve({ count: 0 }),
+    // Pending award badge: admin/recruiter/procurement/finance see award-status demands in tenant
+    ['super_admin', 'admin', 'recruiter', 'procurement', 'finance'].includes(role)
+      ? p?.tenant_id
+        ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'award').eq('tenant_id', p.tenant_id)
+        : supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'award')
+      : Promise.resolve({ count: 0 }),
+    // Demand returned badge: HM sees unread demand_returned notifications
+    supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('type', 'demand_returned').is('read_at', null),
   ]);
   const supplierNameMap = Object.fromEntries(
     ((supplierProfiles ?? []) as { profile_id: string; company_name: string }[]).map(s => [s.profile_id, s.company_name])
@@ -174,6 +193,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         displayName={displayName}
         initial={initial}
         role={role}
+        tenantId={p?.tenant_id ?? null}
         tenantName={tenantName}
         canSeeDemands={canSeeDemands}
         newDemandsCount={newDemandsCount ?? 0}
@@ -182,6 +202,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         newSubmissionsCount={newSubmissionsCount ?? 0}
         newEngagementsCount={newEngagementsCount ?? 0}
         pendingApprovalCount={pendingApprovalCount ?? 0}
+        pendingReviewCount={pendingReviewCount ?? 0}
+        pendingAwardCount={pendingAwardCount ?? 0}
+        demandReturnedCount={demandReturnedCount ?? 0}
         notifications={(notificationsData ?? []) as Notification[]}
         userId={user.id}
         signOut={signOut}

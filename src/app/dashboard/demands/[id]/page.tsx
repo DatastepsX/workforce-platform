@@ -19,6 +19,27 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: '#8E8E93', medium: '#007AFF', high: '#FF9500', urgent: '#FF3B30',
 };
 
+// Statuses before sourcing — the panel is shown but locked (no sending yet)
+const PRE_SOURCING_STATUSES: string[] = ['draft', 'pending_review', 'pending_approval'];
+
+// Explains why the Send to Suppliers panel is locked for a given status
+function sendLockedReason(status: string): string {
+  switch (status) {
+    case 'draft':
+      return 'This demand is still a draft. It can be sent to suppliers once it has been submitted and cleared review and approval.';
+    case 'pending_review':
+      return 'This demand is in MSP review. It can be sent to suppliers once review (and any required approval) is complete.';
+    case 'pending_approval':
+      return 'This demand is awaiting approval. It can be sent to suppliers once it is fully approved.';
+    case 'screening':
+      return 'This demand is in screening. Return it to sourcing to send it to additional suppliers.';
+    case 'on_hold':
+      return 'This demand is on hold. Resume it to continue sourcing.';
+    default:
+      return 'This demand is no longer in the sourcing stage, so it can no longer be sent to suppliers.';
+  }
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
@@ -47,11 +68,19 @@ export default async function DemandDetailPage({ params }: PageProps) {
 
   const demand = demandData as Demand;
   const role = (profileData?.role ?? 'candidate') as UserRole;
-  const canEdit = demand.created_by === user.id || ['super_admin', 'recruiter', 'admin'].includes(role);
-  // Hiring manager can send to suppliers for their own demands
+  const isApproverRole = ['procurement', 'finance'].includes(role);
+  const isHM = role === 'hiring_manager';
+  const isOwnDemand = demand.created_by === user.id;
+  const canEdit = isOwnDemand ||
+    ['super_admin', 'recruiter', 'admin'].includes(role) ||
+    (isApproverRole && demand.status === 'pending_approval') ||
+    (isHM && demand.status === 'pending_approval');
+  // Who can manage (send/assign) suppliers
   const canSendToSuppliers = ['super_admin', 'recruiter', 'admin'].includes(role) ||
-    (role === 'hiring_manager' && demand.created_by === user.id);
-  const canViewSubmissions = ['super_admin', 'recruiter', 'admin', 'hiring_manager'].includes(role);
+    (isHM && isOwnDemand) ||
+    (isApproverRole && demand.status === 'pending_approval') ||
+    (isHM && demand.status === 'pending_approval');
+  const canViewSubmissions = ['super_admin', 'recruiter', 'admin', 'hiring_manager', 'procurement', 'finance'].includes(role);
 
   // Fetch creator profile separately (created_by → auth.users, no direct FK to profiles)
   const { data: creatorProfile } = await supabase
@@ -65,7 +94,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
   const adminDb = createAdminClient();
   let suppliersData: Supplier[] | null = null;
   let sentData = null;
-  if (canSendToSuppliers) {
+  if (canSendToSuppliers || isApproverRole) {
     const [suppliersRes, sentRes] = await Promise.all([
       // If demand is tenant-scoped, only show suppliers assigned & active for that tenant
       demand.tenant_id
@@ -160,7 +189,7 @@ export default async function DemandDetailPage({ params }: PageProps) {
       )}
 
       {/* Process Panel */}
-      {['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role) && tenantConfig && (
+      {['super_admin', 'admin', 'recruiter', 'hiring_manager', 'procurement', 'finance'].includes(role) && tenantConfig && (
         <ProcessPanel
           demandId={id}
           status={demand.status}
@@ -282,13 +311,39 @@ export default async function DemandDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Send to Suppliers */}
-      {canSendToSuppliers && (
+      {/* Send to Suppliers / Pre-assign during review */}
+      {canSendToSuppliers && (demand.status === 'sourcing' || demand.status === 'pending_review' || demand.status === 'pending_approval' || sentEntries.length > 0 || PRE_SOURCING_STATUSES.includes(demand.status)) && (
         <SendToSuppliersPanel
           demandId={id}
           availableSuppliers={allSuppliers}
           sentEntries={sentEntries}
+          canSend={demand.status === 'sourcing'}
+          canAssign={
+            (demand.status === 'pending_review' && ['super_admin', 'admin', 'recruiter'].includes(role)) ||
+            (demand.status === 'pending_approval' && (isApproverRole || isHM || ['super_admin', 'admin', 'recruiter'].includes(role)))
+          }
+          lockedReason={demand.status === 'sourcing' || demand.status === 'pending_review' || demand.status === 'pending_approval' ? null : sendLockedReason(demand.status)}
         />
+      )}
+
+
+      {/* Awaiting submissions banner — shown when sourcing and suppliers have been notified */}
+      {demand.status === 'sourcing' && canViewSubmissions && sentEntries.filter(e => e.status !== 'preassigned').length > 0 && (
+        <div className="mt-4 bg-[#007AFF]/8 border border-[#007AFF]/20 rounded-2xl px-5 py-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-[#007AFF] flex items-center justify-center flex-shrink-0 mt-0.5">
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v4m0 4h.01"/>
+            </svg>
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold text-[#007AFF] mb-0.5">Awaiting Supplier Submissions</p>
+            <p className="text-[13px] text-[#3C3C43]">
+              {(() => { const n = sentEntries.filter(e => e.status !== 'preassigned').length; return `This demand has been sent to ${n} supplier${n !== 1 ? 's' : ''}.`; })()}
+              {' '}Candidates will appear in the submissions table below as suppliers respond.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Suppliers */}
@@ -314,7 +369,13 @@ export default async function DemandDetailPage({ params }: PageProps) {
             demandStartDate={demand.start_date ?? ''}
             demandEndDate={demand.end_date ?? ''}
             contractType={demand.contract_type ?? 'contractor'}
+            demandStatus={demand.status}
             role={role}
+            canAward={
+              ['admin', 'super_admin'].includes(role) ||
+              (role === 'recruiter' && (tenantConfig?.award_msp_offer ?? true)) ||
+              (role === 'hiring_manager' && !(tenantConfig?.award_msp_offer ?? true))
+            }
           />
         </div>
       )}

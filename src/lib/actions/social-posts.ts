@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { generateContent } from '@/lib/social-media/generator';
 import type { SocialPlatform, Demand } from '@/types/database';
 
@@ -53,6 +54,23 @@ export async function generateSocialPosts(demandId: string, platforms: SocialPla
 
   const { error } = await supabase.from('social_posts').insert(rows);
   if (error) throw new Error(error.message);
+
+  // Log to process history
+  try {
+    const admin = createAdminClient();
+    const { data: actorProfile } = await supabase.from('profiles').select('full_name, email, role').eq('id', user.id).single();
+    await admin.from('process_history').insert({
+      demand_id: demandId,
+      to_status: demand.status,
+      action: 'SOCIAL_POST_CREATED',
+      actor_id: user.id,
+      actor_role: (actorProfile as { role: string } | null)?.role ?? null,
+      actor_name: (actorProfile as { full_name: string | null; email: string | null } | null)?.full_name
+        || (actorProfile as { full_name: string | null; email: string | null } | null)?.email || null,
+      notes: `Platforms: ${platforms.join(', ')}`,
+    });
+  } catch { /* non-blocking */ }
+
   revalidate(demandId);
 }
 

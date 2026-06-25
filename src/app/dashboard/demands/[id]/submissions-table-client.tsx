@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useTransition, useMemo, useCallback } from 'react';
-import { updateSubmissionStatus } from '@/lib/actions/submissions';
+import { updateSubmissionStatus, awardSubmission, analyzeSkillMatchAI } from '@/lib/actions/submissions';
+import type { AIMatchResult } from '@/lib/actions/submissions';
 import { createEngagement } from '@/lib/actions/engagements';
 import { addInterview, updateInterview, deleteInterview } from '@/lib/actions/interviews';
 import type { SubmissionStatus, SubmissionInterview, UserRole } from '@/types/database';
@@ -335,27 +336,103 @@ function CommissionPanel({
   );
 }
 
+function AwardPanel({
+  row,
+  onAwarded,
+}: {
+  row: SubmissionRow;
+  onAwarded: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function handleAward() {
+    setError(null);
+    startTransition(async () => {
+      const result = await awardSubmission(row.id, row.demandId, note || undefined);
+      if (result.error) { setError(result.error); return; }
+      onAwarded();
+    });
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-[#E5E5EA] space-y-3">
+      <div className="bg-[#34C759]/8 rounded-xl p-3.5 border border-[#34C759]/20">
+        <p className="text-[12px] font-semibold text-[#34C759] mb-1">Award Candidate</p>
+        <p className="text-[12px] text-[#3C3C43] leading-snug">
+          This will move the demand to the <strong>Award</strong> stage and mark <strong>{row.candidateName}</strong> as the selected candidate.
+        </p>
+      </div>
+      <div>
+        <label className="text-[11px] text-[#8E8E93] mb-1 block">Note (optional)</label>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          rows={2}
+          placeholder="Reason for selection, conditions, next steps…"
+          className="w-full bg-[#F2F2F7] rounded-lg px-3 py-2 text-[13px] text-black placeholder:text-[#8E8E93] outline-none border-[1.5px] border-transparent focus:border-[#34C759] focus:bg-white transition-colors resize-none"
+        />
+      </div>
+      {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
+      <button
+        onClick={handleAward}
+        disabled={isPending}
+        className="w-full py-2.5 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+        style={{ backgroundColor: '#34C759', boxShadow: '0 2px 8px rgba(52,199,89,0.3)' }}
+      >
+        {isPending ? 'Processing…' : '✓ Confirm Award'}
+      </button>
+    </div>
+  );
+}
+
 function CandidateDrawer({
   row,
   demandTitle,
+  demandSkills,
   demandStartDate,
   demandEndDate,
   contractType,
   canAct,
+  canAward,
+  demandStatus,
   onClose,
   onStatusChange,
 }: {
   row: SubmissionRow;
   demandTitle: string;
+  demandSkills: string[];
   demandStartDate: string;
   demandEndDate: string;
   contractType: string;
   canAct: boolean;
+  canAward: boolean;
+  demandStatus: string;
   onClose: () => void;
   onStatusChange: (id: string, status: SubmissionStatus) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [showCommission, setShowCommission] = useState(false);
+  const [showAward, setShowAward] = useState(false);
+  const [aiMatch, setAiMatch] = useState<AIMatchResult | null>(null);
+  const [aiMatchLoading, setAiMatchLoading] = useState(false);
+  const [aiMatchError, setAiMatchError] = useState<string | null>(null);
+  const isScreening = demandStatus === 'screening';
+
+  async function handleAiMatch() {
+    setAiMatchLoading(true);
+    setAiMatchError(null);
+    const { result, error } = await analyzeSkillMatchAI(
+      row.candidateSkills,
+      demandSkills,
+      row.candidateName,
+      demandTitle,
+    );
+    setAiMatchLoading(false);
+    if (error) { setAiMatchError(error); return; }
+    setAiMatch(result ?? null);
+  }
 
   function moveStatus(status: SubmissionStatus) {
     startTransition(async () => {
@@ -464,9 +541,24 @@ function CandidateDrawer({
           )}
 
           {/* Match score detail */}
-          {row.score !== null && (
-            <div>
-              <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-2">Skill Match</p>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Skill Match</p>
+              <button
+                onClick={handleAiMatch}
+                disabled={aiMatchLoading || !row.candidateSkills.length || !demandSkills.length}
+                className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full transition-opacity hover:opacity-70 disabled:opacity-40"
+                style={{ backgroundColor: '#AF52DE18', color: '#AF52DE' }}
+              >
+                {aiMatchLoading ? (
+                  <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" /></svg>
+                ) : (
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                )}
+                ✨ AI Analysis
+              </button>
+            </div>
+            {row.score !== null && !aiMatch && (
               <div className="bg-[#F9F9FB] rounded-2xl p-4">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="flex-1 h-2 rounded-full bg-[#E5E5EA] overflow-hidden">
@@ -480,12 +572,52 @@ function CandidateDrawer({
                   </div>
                   <span className="text-[16px] font-bold tabular-nums text-black">{row.score}%</span>
                 </div>
-                <p className="text-[12px] text-[#8E8E93]">
-                  Based on skill overlap · AI-powered ranking coming soon
-                </p>
+                <p className="text-[12px] text-[#8E8E93]">Keyword overlap score · Use ✨ AI Analysis for semantic matching</p>
               </div>
-            </div>
-          )}
+            )}
+            {aiMatchError && <p className="text-[12px] text-[#FF3B30] mt-1">{aiMatchError}</p>}
+            {aiMatch && (
+              <div className="bg-gradient-to-br from-[#AF52DE]/8 to-[#AF52DE]/4 rounded-2xl p-4 border border-[#AF52DE]/15 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-2 rounded-full bg-[#E5E5EA] overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${aiMatch.score}%`, backgroundColor: aiMatch.score >= 80 ? '#34C759' : aiMatch.score >= 50 ? '#AF52DE' : '#FF9500' }} />
+                  </div>
+                  <span className="text-[18px] font-bold tabular-nums" style={{ color: aiMatch.score >= 80 ? '#34C759' : aiMatch.score >= 50 ? '#AF52DE' : '#FF9500' }}>{aiMatch.score}%</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#AF52DE]/15 text-[#AF52DE]">AI</span>
+                </div>
+                <p className="text-[13px] text-[#3C3C43] leading-snug">{aiMatch.summary}</p>
+                {aiMatch.matchedPairs.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-[#AF52DE] uppercase tracking-[0.5px]">Matched Skills</p>
+                    {aiMatch.matchedPairs.map((pair, i) => (
+                      <div key={i} className="bg-white/60 rounded-xl px-3 py-2">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-[12px] font-semibold text-black">{pair.candidateSkill}</span>
+                          <span className="text-[10px] text-[#C7C7CC]">→</span>
+                          <span className="text-[12px] font-semibold text-[#AF52DE]">{pair.demandSkill}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{
+                            backgroundColor: pair.confidence === 'high' ? '#34C75918' : pair.confidence === 'medium' ? '#FF950018' : '#8E8E9318',
+                            color: pair.confidence === 'high' ? '#34C759' : pair.confidence === 'medium' ? '#FF9500' : '#8E8E93',
+                          }}>{pair.confidence}</span>
+                        </div>
+                        <p className="text-[11px] text-[#8E8E93]">{pair.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {aiMatch.missingSkills.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-[#FF3B30] uppercase tracking-[0.5px] mb-1">Missing Skills</p>
+                    <div className="flex flex-wrap gap-1">
+                      {aiMatch.missingSkills.map(s => (
+                        <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-[#FF3B30]/10 text-[#FF3B30]">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* CV */}
           {row.cvSignedUrl && (
@@ -537,45 +669,76 @@ function CandidateDrawer({
           <InterviewSection row={row} canAct={canAct} />
         </div>
 
-        {/* Footer — status actions (scrollable so commission panel button stays visible) */}
-        {canAct && (
+        {/* Footer — status actions */}
+        {(canAct || (canAward && isScreening)) && (
           <div className="overflow-y-auto max-h-[60vh] px-6 py-4 border-t border-[#F2F2F7] bg-[#F9F9FB]">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Move to Stage</p>
-              {row.status !== 'hired' && (
-                <button
-                  onClick={() => setShowCommission(v => !v)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
-                    showCommission
-                      ? 'bg-[#34C759]/15 text-[#34C759]'
-                      : 'bg-[#34C759]/10 text-[#34C759] hover:bg-[#34C759]/20'
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
-                  </svg>
-                  Award Candidate
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {STATUS_ORDER.filter(s => s !== row.status).map(s => {
-                const m = STATUS_META[s];
-                return (
+              <div className="flex items-center gap-2">
+                {/* Award at submission level — only when demand is in screening */}
+                {canAward && isScreening && row.status !== 'hired' && (
                   <button
-                    key={s}
-                    onClick={() => moveStatus(s)}
-                    disabled={isPending}
-                    className="text-[13px] font-medium px-4 py-2 rounded-[10px] transition-all disabled:opacity-40 flex items-center gap-1.5"
-                    style={{ backgroundColor: m.color + '14', color: m.color }}
+                    onClick={() => { setShowAward(v => !v); setShowCommission(false); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                      showAward
+                        ? 'bg-[#34C759]/15 text-[#34C759]'
+                        : 'bg-[#34C759]/10 text-[#34C759] hover:bg-[#34C759]/20'
+                    }`}
                   >
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
-                    {m.label}
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                    Award Candidate
                   </button>
-                );
-              })}
+                )}
+                {/* Commission (create engagement) — for completed/hired flows outside of screening */}
+                {canAct && !isScreening && row.status !== 'hired' && (
+                  <button
+                    onClick={() => { setShowCommission(v => !v); setShowAward(false); }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                      showCommission
+                        ? 'bg-[#007AFF]/15 text-[#007AFF]'
+                        : 'bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20'
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
+                    </svg>
+                    Commission
+                  </button>
+                )}
+              </div>
             </div>
-            {showCommission && (
+            {canAct && (
+              <div className="flex flex-wrap gap-2">
+                {STATUS_ORDER.filter(s => s !== row.status).map(s => {
+                  const m = STATUS_META[s];
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => moveStatus(s)}
+                      disabled={isPending}
+                      className="text-[13px] font-medium px-4 py-2 rounded-[10px] transition-all disabled:opacity-40 flex items-center gap-1.5"
+                      style={{ backgroundColor: m.color + '14', color: m.color }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {showAward && canAward && isScreening && (
+              <AwardPanel
+                row={row}
+                onAwarded={() => {
+                  onStatusChange(row.id, 'offer');
+                  setShowAward(false);
+                  onClose();
+                }}
+              />
+            )}
+            {showCommission && canAct && (
               <CommissionPanel
                 row={row}
                 demandTitle={demandTitle}
@@ -922,9 +1085,12 @@ export function SubmissionsTableClient({
   rows: initialRows,
   role,
   demandTitle,
+  demandSkills,
   demandStartDate,
   demandEndDate,
   contractType,
+  demandStatus,
+  canAward,
 }: {
   rows: SubmissionRow[];
   demandSkills: string[];
@@ -933,13 +1099,15 @@ export function SubmissionsTableClient({
   demandStartDate: string;
   demandEndDate: string;
   contractType: string;
+  demandStatus: string;
+  canAward: boolean;
 }) {
   const [rows, setRows] = useState(initialRows);
   const [selected, setSelected] = useState<SubmissionRow | null>(null);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'direct' | 'supplier'>('all');
-  const canAct = role === 'recruiter' || role === 'admin';
+  const canAct = role === 'recruiter' || role === 'admin' || role === 'super_admin';
   const isFiltered = q !== '' || statusFilter !== 'all' || sourceFilter !== 'all';
   function resetFilters() { setQ(''); setStatusFilter('all'); setSourceFilter('all'); }
 
@@ -1134,10 +1302,13 @@ export function SubmissionsTableClient({
         <CandidateDrawer
           row={selected}
           demandTitle={demandTitle}
+          demandSkills={demandSkills}
           demandStartDate={demandStartDate}
           demandEndDate={demandEndDate}
           contractType={contractType}
           canAct={canAct}
+          canAward={canAward}
+          demandStatus={demandStatus}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
         />

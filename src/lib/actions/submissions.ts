@@ -420,3 +420,147 @@ export async function assignCandidateToDemand(
   revalidatePath('/dashboard/submissions');
   return {};
 }
+
+// Award a specific submission — moves demand to 'award' status and marks submission as 'offer'
+export async function awardSubmission(
+  submissionId: string,
+  demandId: string,
+  note?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const admin = createAdminClient();
+
+  const [{ data: profile }, { data: demand }, { data: submission }] = await Promise.all([
+    admin.from('profiles').select('role, full_name, email').eq('id', user.id).single(),
+    admin.from('demands').select('status, approval_level, tenant_id, title').eq('id', demandId).single(),
+    admin.from('candidate_submissions').select('candidate_name, demand_id').eq('id', submissionId).single(),
+  ]);
+
+  if (!profile || !demand || !submission) return { error: 'Record not found' };
+  if (submission.demand_id !== demandId) return { error: 'Submission does not belong to this demand' };
+  if (demand.status !== 'screening') return { error: 'Can only award from screening stage' };
+
+  // Fetch tenant config for award approval levels + role check
+  const { data: tenantConfig } = demand.tenant_id
+    ? await admin.from('tenant_configs').select('*').eq('tenant_id', demand.tenant_id).single()
+    : await admin.from('tenant_configs').select('*').limit(1).single();
+  const config = tenantConfig as import('@/types/database').TenantConfig | null;
+  const awardMspOffer = config?.award_msp_offer ?? true;
+
+  const role = (profile as { role: string }).role;
+  const canAward =
+    ['admin', 'super_admin'].includes(role) ||
+    (role === 'recruiter' && awardMspOffer) ||
+    (role === 'hiring_manager' && !awardMspOffer);
+  if (!canAward) return { error: 'Not authorized to award candidates per current configuration' };
+  const awardApprovalLevels = config?.award_approval_levels ?? 0;
+  const nextApprovalLevel = awardApprovalLevels > 0 ? 1 : null;
+
+  // Transition demand to 'award'
+  const { error: demandErr } = await admin.from('demands').update({
+    status: 'award',
+    approval_level: nextApprovalLevel,
+    updated_at: new Date().toISOString(),
+  }).eq('id', demandId);
+  if (demandErr) return { error: demandErr.message };
+
+  // Update submission to 'offer' status
+  await admin.from('candidate_submissions').update({ status: 'offer' }).eq('id', submissionId);
+
+  // Log to process history
+  const actorName = (profile as { full_name: string | null; email: string | null } | null)?.full_name
+    || (profile as { full_name: string | null; email: string | null } | null)?.email || null;
+  await admin.from('process_history').insert({
+    demand_id: demandId,
+    from_status: 'screening',
+    to_status: 'award',
+    action: 'AWARD_SUBMISSION',
+    actor_id: user.id,
+    actor_role: (profile as { role: string } | null)?.role ?? null,
+    actor_name: actorName,
+    notes: note ? `${(submission as { candidate_name: string }).candidate_name}: ${note}` : (submission as { candidate_name: string }).candidate_name,
+  });
+
+  // Notify award approvers
+  if (config && awardApprovalLevels > 0) {
+    const awardApproverKey = `award_approval_role_l1` as keyof typeof config;
+    const awardApproverRole = (config[awardApproverKey] as string | null);
+    const rolesToNotify = ['admin'];
+    if (awardApproverRole && !rolesToNotify.includes(awardApproverRole)) rolesToNotify.push(awardApproverRole);
+    const { data: approvers } = demand.tenant_id
+      ? await admin.from('profiles').select('id').in('role', rolesToNotify).eq('tenant_id', demand.tenant_id)
+      : await admin.from('profiles').select('id').in('role', rolesToNotify);
+    if (approvers?.length) {
+      await createNotifications({
+        userIds: approvers.map((p: { id: string }) => p.id),
+        type: 'award_pending_approval',
+        title: 'Award approval required',
+        body: `${(submission as { candidate_name: string }).candidate_name} — ${(demand as { title: string }).title}`,
+        relatedId: demandId,
+        relatedType: 'demand',
+      });
+    }
+  }
+
+  revalidatePath(`/dashboard/demands/${demandId}`);
+  revalidatePath('/dashboard/demands');
+  return {};
+}
+
+export interface AIMatchResult {
+  score: number;
+  summary: string;
+  matchedPairs: { candidateSkill: string; demandSkill: string; confidence: 'high' | 'medium' | 'low'; reason: string }[];
+  missingSkills: string[];
+}
+
+export async function analyzeSkillMatchAI(
+  candidateSkills: string[],
+  demandSkills: string[],
+  candidateName: string,
+  demandTitle: string,
+): Promise<{ result?: AIMatchResult; error?: string }> {
+  if (!candidateSkills.length || !demandSkills.length) {
+    return { error: 'Insufficient skill data for AI analysis' };
+  }
+  if (!process.env.ANTHROPIC_API_KEY) return { error: 'AI analysis not configured' };
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const prompt = `You are a technical recruiter assessing skill match between a candidate and a job demand.
+
+Candidate "${candidateName}" has these skills: ${candidateSkills.join(', ')}
+Demand "${demandTitle}" requires these skills: ${demandSkills.join(', ')}
+
+Analyze semantic skill matches (e.g. "ABAP" matches "SAP development", "React" matches "ReactJS", "MS SQL" matches "SQL Server").
+
+Return JSON with:
+{
+  "score": <0-100 integer representing overall match percentage>,
+  "summary": "<2-sentence summary of the match quality>",
+  "matchedPairs": [
+    { "candidateSkill": "...", "demandSkill": "...", "confidence": "high|medium|low", "reason": "<why they match>" }
+  ],
+  "missingSkills": ["<demand skills the candidate lacks>"]
+}
+
+Return ONLY the JSON object, no markdown.`;
+
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    const result = JSON.parse(text) as AIMatchResult;
+    return { result };
+  } catch (e) {
+    return { error: `AI analysis failed: ${(e as Error).message}` };
+  }
+}
