@@ -11,7 +11,6 @@ interface SearchItem {
 }
 
 interface TenantConfigSearchProps {
-  tenantId: string;
   users: { id: string; email: string | null; full_name: string | null; role: string }[];
   suppliers: { id: string; company_name: string; email: string; assigned: boolean }[];
   orgUnits: { id: string; name: string; description: string | null }[];
@@ -28,7 +27,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 export function TenantConfigSearch({
-  tenantId, users, suppliers, orgUnits, jobDescriptions, supplierCategories,
+  users, suppliers, orgUnits, jobDescriptions, supplierCategories,
 }: TenantConfigSearchProps) {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);

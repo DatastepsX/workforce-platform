@@ -205,7 +205,6 @@ export default async function TenantDetailPage({ params }: PageProps) {
 
       {/* Global config search */}
       <TenantConfigSearch
-        tenantId={id}
         users={tenantUsers}
         suppliers={supplierRows.map(s => ({ id: s.id, company_name: s.company_name, email: s.email, assigned: s.assigned }))}
         orgUnits={orgUnits}
