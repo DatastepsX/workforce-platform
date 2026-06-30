@@ -42,6 +42,45 @@ export default async function SubmitCandidatesPage({
 
   if (!demand) redirect('/supplier');
 
+  const d = demand as Demand;
+
+  // Only accept submissions when demand is in sourcing phase
+  if (d.status !== 'sourcing') {
+    const statusMessages: Record<string, string> = {
+      draft: 'This position is not yet open for submissions.',
+      pending_review: 'This position is under MSP review.',
+      pending_approval: 'This position is awaiting client approval.',
+      screening: 'Submissions for this position are now being reviewed. No further candidates can be added.',
+      interview: 'Candidate interviews are in progress.',
+      award: 'A candidate has been selected for award.',
+      contracting: 'Contracting is in progress.',
+      filled: 'This position has been filled.',
+      on_hold: 'This position is currently on hold.',
+      cancelled: 'This position has been cancelled.',
+      rejected: 'This position has been rejected.',
+    };
+    return (
+      <div className="px-5 py-8 max-w-2xl mx-auto">
+        <Link
+          href="/supplier"
+          className="inline-flex items-center gap-1 text-[14px] text-[#007AFF] mb-6 hover:opacity-70 transition-opacity"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Back to Demands
+        </Link>
+        <div className="bg-white rounded-2xl p-6 shadow-[0_1px_8px_rgba(0,0,0,0.06)] text-center">
+          <div className="w-12 h-12 rounded-full bg-[#FF9500]/12 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-[#FF9500]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+          </div>
+          <h1 className="text-[20px] font-bold text-black mb-2">{d.title}</h1>
+          <p className="text-[15px] text-[#8E8E93]">
+            {statusMessages[d.status] ?? 'Submissions are not currently accepted for this position.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Fetch supplier's candidate pool
   const { data: pool } = await supabase
     .from('supplier_candidates')
@@ -56,7 +95,6 @@ export default async function SubmitCandidatesPage({
     .eq('demand_id', demandId)
     .eq('supplier_id', supplierData.id);
 
-  const d = demand as Demand;
   const candidates = (pool ?? []) as SupplierCandidate[];
   const submissions = (existing ?? []) as CandidateSubmission[];
   const submittedIds = Array.from(new Set(

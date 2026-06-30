@@ -209,7 +209,7 @@ export function DevDataGenerator() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 pointer-events-none">
+    <div className="fixed bottom-6 left-60 z-50 hidden md:flex flex-col items-start gap-2 pointer-events-none">
       {/* Error toast */}
       {state === 'error' && (
         <div className="pointer-events-auto bg-[#1C1C1E] text-white text-[12px] font-medium px-3.5 py-2 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.3)] max-w-[220px] leading-relaxed">

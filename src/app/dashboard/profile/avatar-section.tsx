@@ -235,8 +235,10 @@ export function AvatarSection({ profile, softSkillRatings }: Props) {
             <div className="space-y-3">
               {SOFT_SKILLS.map(skill => (
                 <div key={skill} className="flex items-center gap-3">
-                  <span className="text-[12px] text-[#3C3C43] min-w-[150px]">{SOFT_SKILL_LABELS[skill]}</span>
+                  <label htmlFor={`soft_skill_${skill}`} className="text-[12px] text-[#3C3C43] min-w-[150px]">{SOFT_SKILL_LABELS[skill]}</label>
                   <input
+                    id={`soft_skill_${skill}`}
+                    name={`soft_skill_${skill}`}
                     type="range" min={0} max={5} step={1}
                     value={skillRatings[skill] ?? 0}
                     onChange={e => setSkillRatings(p => ({ ...p, [skill]: Number(e.target.value) }))}

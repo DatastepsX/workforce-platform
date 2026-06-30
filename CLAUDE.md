@@ -1,5 +1,11 @@
 # WorkforceX Platform
 
+## End-of-Session Rule (MANDATORY — no exceptions, no confirmation)
+At the end of every session, **always** do all three of these in order — never ask, never skip:
+1. Update `SESSION_LOG.md` and `CLAUDE.md`
+2. Run `vercel deploy --prod` to deploy to production
+3. Send the changelog email (see below)
+
 ## Changelog Email Rule
 After completing any feature or fix, send a changelog email to micciche.alessandro@gmail.com via Resend. Use this script pattern (run from `/Users/alessandro/workforce-platform`):
 
@@ -17,7 +23,10 @@ import('resend').then(({Resend}) => {
 " --input-type=module
 ```
 
-Or write to a `.mjs` file in the project root, run it, then delete it. Include: what was built, key decisions, testing instructions, and **always** a "Better Requirements Writing" block — even if the requirements were clear and well-written (in that case, say so and explain what made them good). The block must always be present.
+Or write to a `.mjs` file in the project root, run it, then delete it. Include: what was built, key decisions, testing instructions, and **always** these two blocks — both must be present every time:
+
+1. **"Better Requirements Writing"** — even if requirements were clear and well-written (say so and explain why). If they were unclear, say what was missing.
+2. **"English Corner"** — pick 2–4 English mistakes or awkward phrasings from the user's messages in this session and correct them with a brief explanation. Cover grammar, word choice, spelling, and punctuation. Keep it friendly and educational, not pedantic.
 
 ## Session Continuity Rule
 This project is worked on from multiple Claude Code sessions (VSCode + iPhone SSH). To maintain shared context:
@@ -64,7 +73,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 
 ## Current Status
 - **Auth + Roles**: 8 roles (`super_admin/admin/hiring_manager/recruiter/procurement/finance/candidate/supplier`); RLS + SECURITY DEFINER helpers; `get_is_admin()` returns true for admin+super_admin; auto user switch via magic link + PKCE (`/auth/callback`)
-- **Demands**: full CRUD; 12-status workflow (`draft/pending_review/pending_approval/sourcing/screening/award/contracting/filled/on_hold/cancelled/rejected`); skills, budget, dates, channels, `tenant_id`, `job_description_id`; sorted by `updated_at` desc; `super_admin` has full INSERT/UPDATE/DELETE via RLS + server action guards; `not-found.tsx` handles stale notification links gracefully
+- **Demands**: full CRUD; 12-status workflow (`draft/pending_review/pending_approval/sourcing/screening/award/contracting/filled/on_hold/cancelled/rejected`); skills, budget, dates, channels, `tenant_id`, `job_description_id`, `rate_type`; list sorted by URL param (`sortBy:sortDir`), default `updated_at:desc`; sort dropdown in FilterBar persists to localStorage; `super_admin` has full INSERT/UPDATE/DELETE via RLS + server action guards; `not-found.tsx` handles stale notification links gracefully
 - **Workflow v2**: config-driven state machine in `src/lib/workflow/index.ts`; `ProcessPanel` horizontal stepper + status badge + role-filtered action buttons + collapsible history log; `transitionDemandStatus()` logs to `process_history`, fires notifications; `tenants` + `tenant_configs` control approval levels; APPROVE/APPROVE_REVIEW/APPROVE_AWARD show optional comment textarea (`allowNote`); RETURN/REJECT/CANCEL require mandatory note (`requiresNote`); process history logs: DEMAND_CREATED, DEMAND_EDITED (review/approval/sourcing stages), SUPPLIERS_PREASSIGNED, DEMAND_SENT_TO_SUPPLIERS, AWARD_SUBMISSION, SOCIAL_POST_CREATED
 - **Suppliers**: global suppliers assigned per-tenant via `tenant_suppliers` (active toggle); `demand_suppliers` junction for sent demands; "Send to Suppliers" panel filters to tenant-active suppliers
 - **Supplier Categories**: global categories (`supplier_categories`); per-tenant active (`tenant_supplier_categories`); supplier membership (`supplier_category_members`); JD links (`jd_supplier_categories`); managed at `/dashboard/settings/supplier-categories` (super_admin)
@@ -72,14 +81,21 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Career Portal**: public job board (`/careers`), apply form with CV upload + AI-generated PDF CV; graceful inactive demand page; apply form collects `proposed_rate` + `rate_type`
 - **Career Avatar & Navigator**: 4-step AI pipeline (CV parse → summary → career path → skill gaps); 12 soft skills radar chart (self vs AI); Career Navigator at `/dashboard/career-navigator`; Career Ladders per tenant; recruiter read-only view on candidate detail
 - **Engagements (Awards)**: commission candidate → creates engagement, sets submission→hired + demand→filled, emails supplier; `total_amount` + `price_locked` override; sorted by `updated_at` desc
-- **Submissions**: inbox at `/dashboard/submissions`; filter by status/source; "New" badge; `submission_interviews` table for per-submission interview log; `awardSubmission()` action moves demand → `award` + submission → `offer` at submission level (config-based: `award_msp_offer` determines recruiter vs HM can award)
-- **AI Skill Matching**: CandidateDrawer has ✨ AI Analysis button calling `analyzeSkillMatchAI()` (Claude claude-sonnet-4-6) — returns semantic match score, explanation, matched pairs with confidence/reason, missing skills. Base score uses word-overlap tokenization (better than string containment). Supplier portal shows submitted candidates per demand with rate + status.
-- **Notifications**: Supabase Realtime; bell icon with `#FF3B30` badge; 11 notification types (incl. `demand_returned`, `award_pending_approval`, `demand_approved`); dropdown above sidebar; sidebar badge counts per role: `pendingReviewCount` (purple, recruiter), `pendingApprovalCount` (orange), `pendingAwardCount` (green), `demandReturnedCount` (red, HM)
+- **Submissions**: inbox at `/dashboard/submissions`; filter by status/source; "New" badge; `submission_interviews` table for per-submission interview log; `createAward()` action (from submission drawer) creates award record + moves demand → `award` + submission → `offer`; Award panel now collects financial details (rate/dates/total) before creating the award
+- **Cost Items & Compliance Module**: `cost_item_categories`, `cost_items`, `cost_item_contract_types`, `cost_item_clients` tables (migration 042); `compliance_rules`, `compliance_rule_clients`, `compliance_validation_logs` tables (migration 043); 4 contract types: `perm/temp/contracting/sow`; 37 seeded cost items across 7 categories; 18 seeded compliance rules (DE/GB, AÜG, IR35, working time, minimum wage, expenses); Admin pages at `/dashboard/settings/cost-items` and `/dashboard/settings/compliance-rules` (super_admin only, with CRUD); `getAvailableCostItems()` engine filters by contract type + country + tenant; award detail shows applicable cost items grouped by category; demand contract types updated to `perm/temp/contracting/sow`; validation engine in `src/lib/actions/compliance.ts`; audit trail via `compliance_validation_logs`. **Phase 2**: `award_periods` + `period_cost_entries` tables (migration 044, GENERATED amount column); `tenant_compliance_rule_overrides` (migration 045, per-tenant rule overrides); main sidebar "Cost Items" page at `/dashboard/cost-items` (all roles) showing billing periods with status filter + search + computed entry totals; `/dashboard/cost-items/[periodId]` period detail with Single Entry + Daily Timesheet modes; daily timesheet shows all weekdays in period with per-day qty input + Fill All + live total preview; draft entries editable inline (pencil icon); unit_price pre-filled from award.rate; quantity label adapts to rate_type (Hours/Days); staff approve/reject review buttons; award detail gains billing period type selector + Generate Periods button + period list; per-tenant compliance overrides UI in tenant settings page; cost item + compliance config pages mobile-responsive (card list on small screens)
+- **Awards Module**: separate module at `/dashboard/awards`; `awards` table with own status workflow: `pending_approval → approved → active → completed | cancelled`; award detail at `/dashboard/awards/[id]` with status action buttons (accessible to procurement/finance); Awards section on demand detail page; sidebar "Awards" (star icon) → `/dashboard/awards` with green badge for pending approvals; `createAward()` + `updateAwardStatus()` + `updateAwardPO()` in `src/lib/actions/awards.ts`; `po_number` field on awards; approval by procurement/finance (not just admin); `approved` → submission `awarded`; `active` → demand `filled` + billing periods auto-generated if `billing_period_type` + dates set; PO entry form on award detail page; responsive layout for candidate info; award approval notification routes to `/awards/[id]` (not demand); awards list has 5-card stats bar (pending/approved/active/completed/cancelled) — mobile 2+3 grid layout
+- **AI Skill Matching**: CandidateDrawer has ✨ AI Analysis button calling `analyzeSkillMatchAI()` (Claude claude-sonnet-4-6) — returns semantic match score, explanation, matched pairs with confidence/reason, missing skills. AI score saved to `candidate_submissions.ai_score` via `saveAiMatchScore()` and persisted across sessions; shown in table with purple "AI" indicator. Base score uses word-overlap tokenization. **Match Info Popover**: ℹ button also saves AI score when analyzed inline. `submission_status` has `awarded` value (set automatically on award approval); status renamed from "Hired" to "Awarded" in UI. Interview AI fill fixed to send `FieldInfo[]` objects (not string array). DevDataGenerator moved to `bottom-6 left-6` to avoid conflict with CandidateDrawer footer.
+- **Notifications**: Supabase Realtime; bell icon with `#FF3B30` badge; 11 notification types (incl. `demand_returned`, `award_pending_approval`, `demand_approved`); dropdown above sidebar; sidebar badge counts per role: `pendingReviewCount` (purple, recruiter), `pendingApprovalCount` (orange), `pendingAwardCount` (green), `demandReturnedCount` (red, HM), `pendingAwardApprovalCount` (green on Awards nav item)
 - **Social Media**: posts per demand (Instagram/Facebook/LinkedIn/TikTok/X); dark 1080×1080 canvas with QR code; status workflow draft→approved→posted; overview at `/dashboard/social-media`
 - **Tenant Management**: multi-tenant isolation — admin/recruiter scoped to own tenant, super_admin sees all; `tenant_roles` for label overrides; org units + JDs + supplier categories per tenant; user invite/edit/remove in tenant config; `deleteTenant()` cascades all data
 - **Org Units + Job Descriptions**: per-tenant org units; JD templates pre-fill demand creation form; JD picker with live search + org unit filter; `demands.job_description_id` saved; auto-assign suppliers on transition to `sourcing` via JD→supplier category chain
-- **Generate Test Client**: 4 AI calls — company+users+suppliers+categories → candidates → career ladders → org units+JDs; avoids existing tenant names; links suppliers to categories; auto-assigns org units to users; result modal shows all counts
-- **Dev Tools**: `DevDataGenerator` (✨ button) — AI form filler, context-aware; `DevUserSwitcher` — 3-step flow (role → client for supplier → user); all 8 roles; shows tenant-configured label; auto user switch via magic link
+- **Generate Test Client**: 4 AI calls — company+users+suppliers+categories → candidates → career ladders → org units+JDs; avoids existing tenant names; links suppliers to categories; auto-assigns org units to users; result modal shows all counts + "✓ Cost items enabled" chip (`costItemsEnabled` in `GeneratedTenantResult`)
+- **Generate Test Data** (per-tenant): ⚡ purple button on tenant config page (next to RunScenarioButton); calls streaming SSE API at `/api/generate-tenant-test-data` with `{ tenantId }`; creates 15 E2E scenarios (Group A: 5 full E2E demand→submission→award→billing periods→cost entry; Group B: 5 demand→award various statuses; Group C: 5 demand process only at sourcing/pending_approval/cancelled/on_hold/filled); live dark terminal modal with colour-coded log; after completion shows "Run E2E Scenarios →" button linking to `/dashboard/dev/test-scenarios?tenantId=[id]`
+- **Dev Tools**: `DevDataGenerator` (✨ button, bottom-left) — AI form filler, context-aware; `DevUserSwitcher` — 2-step flow (role → user, client step removed); all 8 roles; shows tenant-configured label; auto user switch via magic link; icon alignment fixed (all `w-8 h-8 rounded-xl`); 🧪 test scenarios button (super_admin) links to `/dashboard/dev/test-scenarios`
+- **Workflow Test Scenarios**: `src/lib/workflow/scenarios.ts` — scenario engine generates E2E step list per tenant config + validates each step via live `getTransitions()` engine; dev page at `/dashboard/dev/test-scenarios` shows per-tenant pass/fail results grouped by phase (Demand/Sourcing/Award); auto-runs on page load; accessible to super_admin. **Cost item steps added**: COST_ENTRY_SUBMIT (supplier), COST_MSP_REVIEW (conditional on `cost_msp_review`), COST_HM_APPROVE (conditional on `cost_hm_approval`), BILLING_PERIOD_INVOICED (admin); all operational steps in `OPERATIONAL_ACTIONS` set. Each AI Optimisation Idea has an **⚡ Optimise** button + optional comment field — calls `/api/optimize-idea` which reads CLAUDE.md for context, runs Claude to produce a full engineering spec (Why/Acceptance Criteria/Implementation Plan/DB Changes/Testing), and emails it to the developer. Each **failing test step** (✗) has a **🔧 Fix** button — calls `/api/fix-step`, Claude diagnoses root cause + generates a fix plan, emails developer. Both buttons show `~$0.02` cost estimate before clicking and actual cost after (based on real token usage from Anthropic API).
+- **E2E Process Visualizer**: `src/components/WorkflowVisualizer.tsx` — horizontal scrollable flow diagram embedded in tenant config page (below Details, above Workflow Config); shows all 17 stages color-coded by phase; **4 new billing stages** (purple #5856D6): Cost Entry (always-on), MSP Review cost (configurable via `cost_msp_review`), HM Approval (configurable via `cost_hm_approval`), Invoiced (always-on); conditional stages show ON/OFF badge and grey out when disabled; legend includes billing phase; new config flags `cost_msp_review` + `cost_hm_approval` in `tenant_configs` (migration 047)
+- **Dashboard Overview**: separate stat cards for "Demands Pending Approval" (orange) and "Awards Pending Approval" (green) for approver roles; scoped to tenant where applicable
+- **Demand Progress Bar**: segmented 8-step progress bar on each demand card showing % through the workflow phases (PHASE_ORDER); terminal statuses (cancelled/rejected/on_hold) shown with empty bar
 - **API Call Tracking**: `src/lib/api-tracker.ts` — non-blocking Resend email after every Anthropic call with token counts + cost
 - **Mobile Workflow**: iPhone SSH via Termius + Tailscale (100.111.139.5); Claude Code CLI on subscription billing (Sonnet 4.6); `SESSION_LOG.md` shared between sessions
 
@@ -97,7 +113,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 `id` (uuid, FK auth.users), `email`, `full_name`, `role` (enum: admin/hiring_manager/recruiter/candidate/supplier), `tenant_id` (FK tenants), `org_unit_id` (FK org_units — for HM/procurement/finance pre-filtering), `created_at`
 
 ### `demands`
-`id`, `title`, `description`, `skills` (text[]), `status` (draft/open/closed/cancelled), `budget_min`, `budget_max`, `start_date`, `end_date`, `location`, `channels` (text[]), `tenant_id` (FK tenants — nullable, auto-set from creator's profile), `job_description_id` (FK job_descriptions — nullable, set when JD template used), `created_by` (FK profiles), `created_at`
+`id`, `title`, `description`, `skills` (text[]), `status` (draft/open/closed/cancelled), `budget_min`, `budget_max`, `start_date`, `end_date`, `location`, `channels` (text[]), `billing_period_type`, `rate_type` (text: hourly/daily, default daily — selected on demand form, inherited to award and timesheet entries), `tenant_id` (FK tenants — nullable, auto-set from creator's profile), `job_description_id` (FK job_descriptions — nullable, set when JD template used), `created_by` (FK profiles), `created_at`
 
 ### `org_units`
 `id`, `tenant_id` (FK tenants), `name`, `description`, `active` (bool), `position` (int, sort order), `created_at`
@@ -134,7 +150,7 @@ Avatar fields: `avatar_visible_to_recruiters` (bool), `career_goals`, `preferred
 `id`, `supplier_id` (FK suppliers), `demand_id` (FK demands), `name`, `email`, `phone`, `headline`, `skills` (text[]), `notes`, `cv_path`, `created_at`
 
 ### `candidate_submissions`
-`id`, `demand_id`, `supplier_id`, `candidate_profile_id` (FK candidate_profiles — direct applicants), `supplier_candidate_id` (FK supplier_candidates — supplier submissions), `candidate_name`, `candidate_email`, `status` (proposed/shortlisted/interview/offer/hired/rejected), `source` (supplier/direct), `submitted_at`, `cv_path`, `proposed_rate`, `rate_type`, `notes`
+`id`, `demand_id`, `supplier_id`, `candidate_profile_id` (FK candidate_profiles — direct applicants), `supplier_candidate_id` (FK supplier_candidates — supplier submissions), `candidate_name`, `candidate_email`, `status` (proposed/shortlisted/interview/offer/hired/awarded/rejected), `source` (supplier/direct), `submitted_at`, `cv_path`, `proposed_rate`, `rate_type`, `notes`, `ai_score` (int — saved AI semantic match %), `offer_status` (pending/accepted/declined — supplier response to offer), `offer_note` (text)
 
 ### `social_posts`
 `id`, `demand_id` (FK demands), `platform` (enum: instagram/facebook/linkedin/tiktok/x), `status` (enum: draft/approved/posted/archived/rejected), `caption`, `hashtags` (text[]), `image_path`, `tracking_code` (unique 8-char code), `tracking_url`, `created_by`, `approved_by`, `approved_at`, `posted_at`, `external_post_url`, `created_at`, `updated_at`
@@ -144,6 +160,9 @@ Avatar fields: `avatar_visible_to_recruiters` (bool), `career_goals`, `preferred
 
 ### `submission_interviews`
 `id`, `submission_id` (FK candidate_submissions), `demand_id` (FK demands), `interviewer_name`, `interview_date`, `interview_type` (video/onsite/phone/technical/hr), `rating` (1–5), `notes`, `created_by` (FK auth.users), `created_at`
+
+### `awards`
+`id`, `demand_id` (FK demands — nullable), `submission_id` (FK candidate_submissions — nullable), `supplier_id` (FK suppliers — nullable), `tenant_id` (FK tenants — nullable), `candidate_name`, `candidate_email`, `supplier_name`, `demand_title`, `rate`, `rate_type`, `currency`, `total_amount`, `price_locked` (bool), `start_date`, `end_date`, `status` (text: pending_approval/approved/active/completed/cancelled), `notes`, `po_number` (text — purchase order number), `created_by` (FK auth.users), `created_at`, `updated_at`
 
 ### `engagements`
 `id`, `demand_id` (FK demands), `submission_id` (FK candidate_submissions), `supplier_id` (FK suppliers), `demand_title`, `candidate_name`, `candidate_email`, `supplier_name`, `start_date`, `end_date`, `rate`, `rate_type`, `currency`, `total_amount` (final agreed price, may differ from calc), `price_locked` (bool — manually set total), `status` (active/completed/cancelled), `notes`, `created_by` (FK profiles), `created_at`
@@ -191,6 +210,12 @@ Avatar fields: `avatar_visible_to_recruiters` (bool), `career_goals`, `preferred
 | `20260623000035_job_descriptions_org_units.sql` | `org_units` + `job_descriptions` + `supplier_categories` + `tenant_supplier_categories` + `supplier_category_members` + `jd_supplier_categories` tables; `profiles.org_unit_id` FK; `demands.job_description_id` FK; RLS on all new tables |
 | `20260624000036_super_admin_demands_write.sql` | `demands_insert/update/delete` policies updated to include `super_admin`; purges stale notifications pointing to deleted demands |
 | `20260625000038_notification_enhancements.sql` | ADD `demand_returned`, `award_pending_approval`, `demand_approved` to `notification_type` enum |
+| `20260625000039_awards.sql` | `awards` table + `update_awards_updated_at()` trigger + RLS (select/insert/update/delete policies scoped to tenant) |
+| `20260629000042_cost_items.sql` | `cost_item_categories` + `cost_items` + `cost_item_contract_types` + `cost_item_clients` tables; RLS; 7 categories + 37 cost items seeded |
+| `20260629000043_compliance_rules.sql` | `compliance_rules` + `compliance_rule_clients` + `compliance_validation_logs` tables; RLS; 18 standard rules seeded (DE AÜG, IR35, working time, wages, expenses) |
+| `20260629000044_award_periods.sql` | `billing_period_type` on `demands` + `awards`; `award_periods` (billing periods per award); `period_cost_entries` (GENERATED `amount` column, timesheets/expenses/milestones); RLS for staff/supplier/candidate |
+| `20260629000045_tenant_rule_overrides.sql` | `tenant_compliance_rule_overrides` (per-tenant override of any platform compliance rule: active/threshold/severity/override_allowed); RLS scoped by tenant |
+| `20260630_demand_rate_type` (applied via MCP) | `demands.rate_type text DEFAULT 'daily'` — rate type for billing (hourly/daily); selected on demand form, inherited by award and timesheet entries |
 
 ## Storage Buckets
 Both buckets are **private** (RLS-protected), max 10 MB, PDF only.
@@ -239,9 +264,19 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 | `/dashboard/career-ladders/[id]` | Edit career ladder + steps |
 | `/dashboard/social-media` | All social posts across all demands — filter by platform/status, full management (admin/recruiter only) |
 | `/dashboard/submissions` | All submissions inbox — sorted by submitted_at, filter by status/source, "New" badge (admin/recruiter/hiring_manager) |
+| `/dashboard/awards` | Awards list — filter by status (pending/approved/active/completed/cancelled); links to award detail |
+| `/dashboard/awards/[id]` | Award detail — candidate, financial terms, dates, status actions (Approve / Mark Active / Complete / Cancel); billing period type selector + Generate Periods button + period list |
+| `/dashboard/cost-items` | Cost Items inbox — all billing periods for current user's role (staff: tenant-scoped; supplier: own awards; candidate: own); status stat cards + search |
+| `/dashboard/cost-items/[periodId]` | Billing period detail — cost entry form (timesheet/expense/milestone/fee + cost item picker); entries with approve/reject buttons for staff; Submit Period + Approve Period + Mark Invoiced actions |
 | `/dashboard/settings/tenants` | Tenant list + create form (super_admin only; admin redirected to own tenant) |
 | `/dashboard/settings/tenants/[id]` | Tenant detail — edit name/slug/active + workflow config + org units + job descriptions + supplier categories + user org unit assignment (admin/super_admin) |
 | `/dashboard/settings/supplier-categories` | Global supplier categories management — create/edit/delete + assign suppliers per category (super_admin only) |
+| `/dashboard/settings/cost-items` | Cost Item master data list — tabbed by contract type (All/Temp/Contracting/SOW/Perm); search; CRUD (super_admin only) |
+| `/dashboard/settings/cost-items/new` | Create cost item — all 16 fields, contract type checkboxes, SAP mapping (super_admin only) |
+| `/dashboard/settings/cost-items/[id]` | Edit cost item (super_admin only) |
+| `/dashboard/settings/compliance-rules` | Compliance rules list — filter by country/contract type/severity; severity stat cards; CRUD (super_admin only) |
+| `/dashboard/settings/compliance-rules/new` | Create compliance rule — all fields, validation logic picker (super_admin only) |
+| `/dashboard/settings/compliance-rules/[id]` | Edit compliance rule (super_admin only) |
 
 ### Supplier Portal (protected, supplier role)
 | Route | Description |
@@ -257,6 +292,7 @@ Access via `createSignedUrl(path, 3600)` (1-hour expiry). The `cv_path` column i
 |---|---|
 | `/api/generate-test-data` | POST — Claude-powered AI form filler; body: `{ path, fields, pageContext }` |
 | `/api/career-avatar/generate` | POST — 4-step synchronous AI pipeline: CV parse → avatar summary → career path → skill gaps; sets `avatar_status` on `candidate_profiles` |
+| `/api/generate-tenant-test-data` | POST streaming SSE — body: `{ tenantId }`; generates 15 E2E test scenarios per tenant using admin client; streams log lines as `data: { msg, type }` SSE events; done event: `data: { done: true, count, results }` |
 
 ## Key Patterns
 

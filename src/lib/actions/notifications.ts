@@ -40,7 +40,8 @@ export async function markNotificationRead(notificationId: string) {
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('id', notificationId);
-  revalidatePath('/dashboard', 'layout');
+  // No revalidatePath here — bell manages its own state optimistically, and
+  // calling revalidatePath('layout') concurrently with navigation causes errors.
 }
 
 export async function markAllNotificationsRead() {
@@ -76,11 +77,12 @@ export async function markDemandNotificationReadById(demandId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
+  // Mark all demand-related notification types as read when opening a demand
   await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('user_id', user.id)
-    .eq('type', 'demand_created')
+    .in('type', ['demand_created', 'demand_pending_review', 'demand_pending_approval', 'demand_returned', 'demand_approved'])
     .eq('related_id', demandId)
     .is('read_at', null);
   revalidatePath('/dashboard', 'layout');

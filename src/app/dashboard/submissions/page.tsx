@@ -4,39 +4,57 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { SubmissionsInboxClient } from './submissions-inbox-client';
 
+type SubmissionRow = {
+  id: string;
+  demand_id: string;
+  supplier_id: string | null;
+  candidate_profile_id: string | null;
+  candidate_name: string;
+  candidate_email: string | null;
+  status: string;
+  source: string;
+  submitted_at: string;
+  proposed_rate: number | null;
+  rate_type: string | null;
+  notes: string | null;
+  cv_path: string | null;
+  demands: { id: string; title: string } | null;
+  suppliers: { company_name: string } | null;
+};
+
 export default async function SubmissionsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single();
   const role = profile?.role ?? '';
   if (!['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role)) redirect('/dashboard');
 
   const admin = createAdminClient();
-  // Join with demands for title and suppliers for company name
-  const { data } = await admin
-    .from('candidate_submissions')
-    .select('*, demands(id, title), suppliers(company_name)')
-    .order('submitted_at', { ascending: false });
+  const tenantId = profile?.tenant_id ?? null;
 
-  const submissions = (data ?? []) as Array<{
-    id: string;
-    demand_id: string;
-    supplier_id: string | null;
-    candidate_profile_id: string | null;
-    candidate_name: string;
-    candidate_email: string | null;
-    status: string;
-    source: string;
-    submitted_at: string;
-    proposed_rate: number | null;
-    rate_type: string | null;
-    notes: string | null;
-    cv_path: string | null;
-    demands: { id: string; title: string } | null;
-    suppliers: { company_name: string } | null;
-  }>;
+  let submissions: SubmissionRow[] = [];
+
+  if (role !== 'super_admin' && tenantId) {
+    // Fetch demand IDs for this tenant, then filter submissions
+    const { data: tenantDemands } = await admin.from('demands').select('id').eq('tenant_id', tenantId);
+    const demandIds = (tenantDemands ?? []).map((d: { id: string }) => d.id);
+    if (demandIds.length > 0) {
+      const { data } = await admin
+        .from('candidate_submissions')
+        .select('*, demands(id, title), suppliers(company_name)')
+        .in('demand_id', demandIds)
+        .order('submitted_at', { ascending: false });
+      submissions = (data ?? []) as SubmissionRow[];
+    }
+  } else {
+    const { data } = await admin
+      .from('candidate_submissions')
+      .select('*, demands(id, title), suppliers(company_name)')
+      .order('submitted_at', { ascending: false });
+    submissions = (data ?? []) as SubmissionRow[];
+  }
 
   return (
     <div className="px-8 py-10">

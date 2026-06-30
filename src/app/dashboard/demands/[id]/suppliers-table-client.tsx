@@ -4,10 +4,11 @@ import { useState, useMemo } from 'react';
 import type { DemandSupplierStatus, SubmissionStatus } from '@/types/database';
 
 const REL_STATUS_META: Record<DemandSupplierStatus, { label: string; color: string }> = {
-  sent:      { label: 'Sent',      color: '#8E8E93' },
-  viewed:    { label: 'Viewed',    color: '#FF9500' },
-  submitted: { label: 'Submitted', color: '#34C759' },
-  rejected:  { label: 'Declined', color: '#FF3B30' },
+  sent:        { label: 'Sent',         color: '#8E8E93' },
+  viewed:      { label: 'Viewed',       color: '#FF9500' },
+  submitted:   { label: 'Submitted',    color: '#34C759' },
+  rejected:    { label: 'Declined',     color: '#FF3B30' },
+  preassigned: { label: 'Pre-assigned', color: '#5856D6' },
 };
 
 const SUB_STATUS_META: Record<SubmissionStatus, { label: string; color: string }> = {
@@ -16,11 +17,12 @@ const SUB_STATUS_META: Record<SubmissionStatus, { label: string; color: string }
   interview:   { label: 'Interview',   color: '#FF9500' },
   offer:       { label: 'Offer',       color: '#34C759' },
   hired:       { label: 'Hired',       color: '#34C759' },
+  awarded:     { label: 'Awarded',     color: '#AF52DE' },
   rejected:    { label: 'Rejected',    color: '#FF3B30' },
 };
 
 const STATUS_SORT: Record<DemandSupplierStatus, number> = {
-  submitted: 0, viewed: 1, sent: 2, rejected: 3,
+  submitted: 0, viewed: 1, sent: 2, rejected: 3, preassigned: 4,
 };
 
 export interface SupplierRow {

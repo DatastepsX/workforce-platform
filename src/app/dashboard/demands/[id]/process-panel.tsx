@@ -2,6 +2,15 @@
 
 import { useState, useTransition } from 'react';
 import { transitionDemandStatus } from '@/lib/actions/workflow';
+
+function Spinner() {
+  return (
+    <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+    </svg>
+  );
+}
 import { getTransitions, STATUS_LABELS, STATUS_COLORS, PHASE_ORDER, PHASE_LABELS, isTerminal, getNextActorLabel } from '@/lib/workflow';
 import type { DemandStatus, UserRole, TenantConfig, ProcessHistoryEntry } from '@/types/database';
 
@@ -142,6 +151,7 @@ function phaseIndex(status: DemandStatus, phases: DemandStatus[]): number {
 export function ProcessPanel({ demandId, status, approvalLevel, role, config, history }: Props) {
   const [pending, startTransition] = useTransition();
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [error, setError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -169,8 +179,10 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
 
   function execute(action: string, note?: string) {
     setError('');
+    setLoadingAction(action);
     startTransition(async () => {
       const result = await transitionDemandStatus(demandId, action, note);
+      setLoadingAction(null);
       if (result.error) {
         setError(result.error);
       } else {
@@ -293,13 +305,14 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
               <button
                 onClick={() => execute(activeAction, noteText || undefined)}
                 disabled={pending || (!!pendingTransition?.requiresNote && !noteText.trim())}
-                className="px-3 py-1.5 bg-[#007AFF] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#0066DD] disabled:opacity-40 transition-colors"
+                className="px-3 py-1.5 bg-[#007AFF] text-white text-[12px] font-semibold rounded-[8px] hover:bg-[#0066DD] disabled:opacity-40 transition-colors flex items-center gap-1.5"
               >
-                Confirm
+                {pending ? <><Spinner />Processing…</> : 'Confirm'}
               </button>
               <button
                 onClick={() => { setActiveAction(null); setError(''); }}
-                className="px-3 py-1.5 bg-[#E5E5EA] text-[#3C3C43] text-[12px] font-semibold rounded-[8px] hover:bg-[#D1D1D6] transition-colors"
+                disabled={pending}
+                className="px-3 py-1.5 bg-[#E5E5EA] text-[#3C3C43] text-[12px] font-semibold rounded-[8px] hover:bg-[#D1D1D6] disabled:opacity-40 transition-colors"
               >
                 Cancel
               </button>
@@ -310,37 +323,43 @@ export function ProcessPanel({ demandId, status, approvalLevel, role, config, hi
         {/* Primary actions */}
         {!activeAction && primaryTransitions.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-1.5">
-            {primaryTransitions.map(t => (
-              <button
-                key={t.action}
-                onClick={() => handleAction(t.action)}
-                disabled={pending}
-                title={t.description}
-                className="px-3 py-1.5 bg-[#007AFF] text-white text-[12px] font-semibold rounded-[10px] hover:bg-[#0066DD] active:scale-95 disabled:opacity-40 transition-all"
-              >
-                {t.label}
-              </button>
-            ))}
+            {primaryTransitions.map(t => {
+              const isLoading = loadingAction === t.action;
+              return (
+                <button
+                  key={t.action}
+                  onClick={() => handleAction(t.action)}
+                  disabled={pending}
+                  title={t.description}
+                  className="px-3 py-1.5 bg-[#007AFF] text-white text-[12px] font-semibold rounded-[10px] hover:bg-[#0066DD] active:scale-95 disabled:opacity-40 transition-all flex items-center gap-1.5"
+                >
+                  {isLoading ? <><Spinner />Processing…</> : t.label}
+                </button>
+              );
+            })}
           </div>
         )}
 
         {/* Danger actions */}
         {!activeAction && dangerTransitions.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {dangerTransitions.map(t => (
-              <button
-                key={t.action}
-                onClick={() => handleAction(t.action)}
-                disabled={pending}
-                className="px-2.5 py-1 text-[11px] font-semibold rounded-[8px] transition-all active:scale-95 disabled:opacity-40"
-                style={{
-                  color: t.action === 'PUT_ON_HOLD' ? '#FF9500' : '#FF3B30',
-                  backgroundColor: t.action === 'PUT_ON_HOLD' ? '#FF950012' : '#FF3B3012',
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
+            {dangerTransitions.map(t => {
+              const isLoading = loadingAction === t.action;
+              return (
+                <button
+                  key={t.action}
+                  onClick={() => handleAction(t.action)}
+                  disabled={pending}
+                  className="px-2.5 py-1 text-[11px] font-semibold rounded-[8px] transition-all active:scale-95 disabled:opacity-40 flex items-center gap-1.5"
+                  style={{
+                    color: t.action === 'PUT_ON_HOLD' ? '#FF9500' : '#FF3B30',
+                    backgroundColor: t.action === 'PUT_ON_HOLD' ? '#FF950012' : '#FF3B3012',
+                  }}
+                >
+                  {isLoading ? <><Spinner />Processing…</> : t.label}
+                </button>
+              );
+            })}
           </div>
         )}
 

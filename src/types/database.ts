@@ -17,8 +17,18 @@ export type DemandStatus =
   | 'rejected';
 export type DemandPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ContractType = 'permanent' | 'freelance' | 'contractor' | 'internship';
+export type CostItemContractType = 'perm' | 'temp' | 'contracting' | 'sow';
+export type BillingPeriodType = 'weekly' | 'bi_weekly' | 'monthly' | 'milestone' | 'fixed';
+export type AwardPeriodStatus = 'open' | 'submitted' | 'approved' | 'invoiced';
+export type CostEntryStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type CostEntryType = 'timesheet' | 'expense' | 'milestone' | 'fee';
+export type BillingType = 'hourly' | 'daily' | 'fixed' | 'percentage' | 'milestone' | 'unit';
+export type TaxTreatment = 'standard' | 'exempt' | 'reverse_charge' | 'zero_rated';
+export type SapCostObjectType = 'cost_center' | 'wbs_element' | 'internal_order' | 'profit_center';
+export type ComplianceSeverity = 'info' | 'warning' | 'error';
+export type ValidationResult = 'passed' | 'warning' | 'failed';
 export type SupplierStatus = 'active' | 'inactive';
-export type DemandSupplierStatus = 'sent' | 'viewed' | 'submitted' | 'rejected';
+export type DemandSupplierStatus = 'sent' | 'viewed' | 'submitted' | 'rejected' | 'preassigned';
 
 export interface Profile {
   id: string;
@@ -48,6 +58,8 @@ export interface Demand {
   channels: string[];
   experience_years: number | null;
   approval_level: number | null;
+  billing_period_type: BillingPeriodType | null;
+  rate_type: string | null;
   tenant_id: string | null;
   created_by: string;
   created_at: string;
@@ -89,6 +101,9 @@ export interface TenantConfig {
   award_approval_role_l2: string | null;
   award_approval_role_l3: string | null;
   award_po_step: boolean;
+  // Cost item workflow
+  cost_msp_review: boolean;
+  cost_hm_approval: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -162,7 +177,7 @@ export interface CandidateProfile {
   avatar_status: AvatarStatus;
 }
 
-export type SubmissionStatus = 'proposed' | 'shortlisted' | 'interview' | 'offer' | 'hired' | 'rejected';
+export type SubmissionStatus = 'proposed' | 'shortlisted' | 'interview' | 'offer' | 'hired' | 'awarded' | 'rejected';
 
 export interface SupplierCandidate {
   id: string;
@@ -195,9 +210,13 @@ export interface CandidateSubmission {
   candidate_email: string | null;
   notes: string | null;
   status: SubmissionStatus;
+  source: 'supplier' | 'direct';
   submitted_at: string;
   proposed_rate: number | null;
   rate_type: string | null;
+  ai_score: number | null;
+  offer_status: 'pending' | 'accepted' | 'declined' | null;
+  offer_note: string | null;
 }
 
 export interface DemandSupplier {
@@ -211,6 +230,34 @@ export interface DemandSupplier {
 }
 
 export type EngagementStatus = 'active' | 'completed' | 'cancelled';
+
+export type AwardStatus = 'pending_approval' | 'approved' | 'active' | 'completed' | 'cancelled';
+
+export interface Award {
+  id: string;
+  demand_id: string | null;
+  submission_id: string | null;
+  supplier_id: string | null;
+  tenant_id: string | null;
+  candidate_name: string;
+  candidate_email: string | null;
+  supplier_name: string | null;
+  demand_title: string;
+  rate: number | null;
+  rate_type: string | null;
+  currency: string;
+  total_amount: number | null;
+  price_locked: boolean;
+  start_date: string | null;
+  end_date: string | null;
+  status: AwardStatus;
+  notes: string | null;
+  po_number: string | null;
+  billing_period_type: BillingPeriodType | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export type SocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'tiktok' | 'x';
 export type SocialPostStatus = 'draft' | 'approved' | 'posted' | 'archived' | 'rejected';
@@ -235,6 +282,47 @@ export interface SocialPost {
 }
 
 export type NotificationType = 'new_submission' | 'submission_status' | 'engagement_created' | 'demand_received' | 'demand_created' | 'candidate_created' | 'supplier_created' | 'demand_pending_approval';
+
+// ── Org Units ────────────────────────────────────────────────────────────────
+export interface OrgUnit {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  position: number;
+  created_at: string;
+}
+
+// ── Job Descriptions ─────────────────────────────────────────────────────────
+export interface JobDescription {
+  id: string;
+  tenant_id: string;
+  org_unit_id: string | null;
+  title: string;
+  description: string | null;
+  skills: string[];
+  contract_type: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
+  experience_years: number | null;
+  seniority_level: string | null;
+  location: string | null;
+  remote_allowed: boolean;
+  languages: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Supplier Categories (global) ─────────────────────────────────────────────
+export interface SupplierCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  created_at: string;
+}
 
 export interface Notification {
   id: string;
@@ -354,6 +442,135 @@ export interface SubmissionInterview {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+}
+
+// ── Cost Items ───────────────────────────────────────────────────────────────
+
+export interface CostItemCategory {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface CostItem {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  category_id: string | null;
+  billing_type: BillingType | null;
+  markup_eligible: boolean;
+  pass_through: boolean;
+  tax_treatment: TaxTreatment;
+  sap_gl_account: string | null;
+  sap_cost_object_type: SapCostObjectType | null;
+  countries: string[];
+  active: boolean;
+  effective_from: string | null;
+  effective_to: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  category?: CostItemCategory | null;
+  contract_types?: CostItemContractType[];
+}
+
+// ── Compliance ───────────────────────────────────────────────────────────────
+
+export interface ComplianceRule {
+  id: string;
+  name: string;
+  description: string | null;
+  country: string | null;
+  contract_type: CostItemContractType | null;
+  cost_item_id: string | null;
+  effective_from: string | null;
+  effective_to: string | null;
+  severity: ComplianceSeverity;
+  threshold: number | null;
+  threshold_unit: string | null;
+  validation_logic: string;
+  override_allowed: boolean;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Award Periods ─────────────────────────────────────────────────────────────
+
+export interface AwardPeriod {
+  id: string;
+  award_id: string;
+  period_number: number;
+  period_type: BillingPeriodType;
+  label: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: AwardPeriodStatus;
+  total_amount: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  entries?: PeriodCostEntry[];
+}
+
+export interface PeriodCostEntry {
+  id: string;
+  period_id: string;
+  award_id: string;
+  cost_item_id: string | null;
+  submitted_by: string | null;
+  entry_type: CostEntryType;
+  quantity: number;
+  unit_price: number;
+  amount: number;
+  currency: string;
+  description: string | null;
+  notes: string | null;
+  attachment_path: string | null;
+  status: CostEntryStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  // joined
+  cost_item?: CostItem | null;
+}
+
+// ── Tenant Compliance Rule Overrides ──────────────────────────────────────────
+
+export interface TenantComplianceRuleOverride {
+  id: string;
+  tenant_id: string;
+  rule_id: string;
+  active_override: boolean | null;
+  threshold_override: number | null;
+  severity_override: string | null;
+  override_allowed_override: boolean | null;
+  notes: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export interface ComplianceValidationLog {
+  id: string;
+  rule_id: string | null;
+  rule_snapshot: Record<string, unknown> | null;
+  entity_type: string;
+  entity_id: string | null;
+  validation_result: ValidationResult;
+  override_decision: boolean;
+  override_reason: string | null;
+  override_by: string | null;
+  validated_by: string | null;
+  validated_at: string;
+  final_outcome: 'approved' | 'rejected' | 'pending' | null;
 }
 
 export interface Engagement {

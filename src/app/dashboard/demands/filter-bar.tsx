@@ -2,7 +2,19 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
+import { markDemandNotificationsRead } from '@/lib/actions/notifications';
 import type { DemandStatus, DemandPriority } from '@/types/database';
+
+const SORT_OPTIONS = [
+  { value: 'updated_at:desc', label: 'Last updated' },
+  { value: 'updated_at:asc',  label: 'Oldest updated' },
+  { value: 'created_at:desc', label: 'Newest created' },
+  { value: 'created_at:asc',  label: 'Oldest created' },
+  { value: 'title:asc',       label: 'Title A→Z' },
+  { value: 'priority:desc',   label: 'Priority' },
+] as const;
+
+const SORT_LS_KEY = 'demands_sort';
 
 const STATUSES: { value: DemandStatus | 'all'; label: string }[] = [
   { value: 'all',              label: 'All' },
@@ -32,9 +44,25 @@ export function FilterBar() {
   const status = params.get('status') ?? 'all';
   const priority = params.get('priority') ?? 'all';
   const [q, setQ] = useState(params.get('q') ?? '');
+  const [sort, setSort] = useState<string>('updated_at:desc');
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
+  useEffect(() => { markDemandNotificationsRead(); }, []);
   useEffect(() => { setQ(params.get('q') ?? ''); }, [params]);
+
+  // Load sort preference from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(SORT_LS_KEY);
+    const initial = params.get('sort') ?? saved ?? 'updated_at:desc';
+    setSort(initial);
+    // Apply saved sort to URL if not already in params
+    if (!params.get('sort') && saved && saved !== 'updated_at:desc') {
+      const next = new URLSearchParams(params.toString());
+      next.set('sort', saved);
+      router.replace(`/dashboard/demands?${next.toString()}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -49,8 +77,17 @@ export function FilterBar() {
     debounceRef.current = setTimeout(() => setParam('q', value), 350);
   }
 
+  function handleSort(value: string) {
+    setSort(value);
+    localStorage.setItem(SORT_LS_KEY, value);
+    const next = new URLSearchParams(params.toString());
+    if (value === 'updated_at:desc') next.delete('sort');
+    else next.set('sort', value);
+    router.push(`/dashboard/demands?${next.toString()}`);
+  }
+
   return (
-    <div className="flex flex-col sm:flex-row gap-2 mb-6">
+    <div className="flex flex-col sm:flex-row gap-2 mb-6 flex-wrap">
       {/* Search */}
       <div className="relative flex-1 max-w-sm">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E93] pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -70,10 +107,21 @@ export function FilterBar() {
         )}
       </div>
 
-      {/* Filter controls: native selects on mobile, chip strips on desktop */}
-      <div className="flex gap-2">
+      {/* Filter controls */}
+      <div className="flex gap-2 flex-wrap">
         <FilterGroup label="Status" options={STATUSES} value={status} onChange={v => setParam('status', v)} />
         <FilterGroup label="Priority" options={PRIORITIES} value={priority} onChange={v => setParam('priority', v)} />
+        {/* Sort control */}
+        <select
+          value={sort}
+          onChange={e => handleSort(e.target.value)}
+          className="h-9 px-3 rounded-xl bg-white text-[12px] font-medium text-[#3C3C43] shadow-[0_1px_4px_rgba(0,0,0,0.06)] border-[1.5px] border-transparent focus:border-[#007AFF] focus:outline-none transition-colors cursor-pointer"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238E8E93' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', paddingRight: '28px', appearance: 'none' }}
+        >
+          {SORT_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
     </div>
   );

@@ -9,11 +9,17 @@ export async function createCareerLadder(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  // Resolve tenant_id: from form (super_admin selecting a client) or from profile
+  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single();
+  const tenantId = (formData.get('tenant_id') as string) || profile?.tenant_id || null;
+  if (!tenantId) throw new Error('A client must be selected for this career ladder.');
+
   const { data, error } = await supabase.from('career_ladders').insert({
     name:        formData.get('name') as string,
     industry:    (formData.get('industry') as string) || null,
     description: (formData.get('description') as string) || null,
     created_by:  user.id,
+    tenant_id:   tenantId,
   }).select().single();
 
   if (error) throw new Error(error.message);

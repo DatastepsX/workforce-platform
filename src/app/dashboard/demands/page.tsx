@@ -4,7 +4,47 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { FilterBar } from './filter-bar';
 import type { Demand, DemandStatus, DemandPriority } from '@/types/database';
-import { STATUS_COLORS, STATUS_LABELS } from '@/lib/workflow';
+import { STATUS_COLORS, STATUS_LABELS, PHASE_ORDER } from '@/lib/workflow';
+
+const TERMINAL_STATUSES: DemandStatus[] = ['cancelled', 'rejected', 'on_hold'];
+
+function DemandProgress({ status }: { status: DemandStatus }) {
+  const isTerminal = TERMINAL_STATUSES.includes(status);
+  const phaseIdx = PHASE_ORDER.indexOf(status);
+  const progress = phaseIdx >= 0 ? Math.round(((phaseIdx + 1) / PHASE_ORDER.length) * 100) : null;
+  const color = STATUS_COLORS[status] ?? '#8E8E93';
+  const total = PHASE_ORDER.length;
+
+  if (isTerminal) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex gap-px flex-1">
+          {PHASE_ORDER.map((_, i) => (
+            <div key={i} className="h-1 flex-1 rounded-full bg-[#E5E5EA]" />
+          ))}
+        </div>
+        <span className="text-[10px] font-semibold flex-shrink-0" style={{ color }}>{STATUS_LABELS[status]}</span>
+      </div>
+    );
+  }
+
+  if (phaseIdx < 0) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex gap-px flex-1">
+        {Array.from({ length: total }).map((_, i) => (
+          <div
+            key={i}
+            className="h-1 flex-1 rounded-full transition-colors"
+            style={{ backgroundColor: i <= phaseIdx ? color : '#E5E5EA' }}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] font-semibold tabular-nums flex-shrink-0" style={{ color }}>{progress}%</span>
+    </div>
+  );
+}
 
 const PRIORITY_LABELS: Record<DemandPriority, string> = {
   low: 'Low',
@@ -28,8 +68,10 @@ const CONTRACT_LABELS: Record<string, string> = {
 };
 
 interface PageProps {
-  searchParams: Promise<{ status?: string; priority?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; priority?: string; q?: string; sort?: string }>;
 }
+
+const ALLOWED_SORT_COLS = new Set(['updated_at', 'created_at', 'title', 'priority']);
 
 export default async function DemandsPage({ searchParams }: PageProps) {
   const supabase = await createClient();
@@ -39,12 +81,16 @@ export default async function DemandsPage({ searchParams }: PageProps) {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const isSuperAdmin = profile?.role === 'super_admin';
 
-  const { status, priority, q } = await searchParams;
+  const { status, priority, q, sort } = await searchParams;
+
+  const [sortCol, sortDirRaw] = (sort ?? 'updated_at:desc').split(':');
+  const sortColumn = ALLOWED_SORT_COLS.has(sortCol) ? sortCol : 'updated_at';
+  const ascending = sortDirRaw === 'asc';
 
   let query = supabase
     .from('demands')
     .select('*')
-    .order('updated_at', { ascending: false });
+    .order(sortColumn, { ascending });
 
   if (status && status !== 'all') query = query.eq('status', status as DemandStatus);
   if (priority && priority !== 'all') query = query.eq('priority', priority as DemandPriority);
@@ -187,6 +233,11 @@ export default async function DemandsPage({ searchParams }: PageProps) {
                     {demand.budget_max ? `€${demand.budget_max.toLocaleString()}` : `€${demand.budget_min?.toLocaleString()}`}
                   </p>
                 )}
+              </div>
+
+              {/* Progress bar */}
+              <div className="mt-2.5">
+                <DemandProgress status={demand.status} />
               </div>
             </Link>
           );})}

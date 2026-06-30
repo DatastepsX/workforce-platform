@@ -70,10 +70,11 @@ const TYPE_ICONS: Record<string, { bg: string; icon: JSX.Element }> = {
 };
 
 const NOTIFICATION_LINKS: Record<string, (id: string) => string> = {
-  demand:    id => `/dashboard/demands/${id}`,
-  candidate: id => `/dashboard/candidates/${id}`,
-  supplier:  () => `/dashboard/suppliers`,
+  demand:     id => `/dashboard/demands/${id}`,
+  candidate:  id => `/dashboard/candidates/${id}`,
+  supplier:   () => `/dashboard/suppliers`,
   engagement: id => `/dashboard/engagements/${id}`,
+  award:      id => `/dashboard/awards/${id}`,
 };
 
 type DropdownPos = { bottom: number; left: number };

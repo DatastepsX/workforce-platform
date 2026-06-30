@@ -17,6 +17,7 @@ const STATUS_META: Record<SubmissionStatus, { label: string; color: string }> = 
   interview:  { label: 'Interview',     color: '#AF52DE' },
   offer:      { label: 'Offer received',color: '#34C759' },
   hired:      { label: 'Hired',         color: '#34C759' },
+  awarded:    { label: 'Awarded',       color: '#AF52DE' },
   rejected:   { label: 'Not selected',  color: '#FF3B30' },
 };
 

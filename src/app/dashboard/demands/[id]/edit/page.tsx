@@ -49,6 +49,8 @@ export default async function EditDemandPage({ params }: PageProps) {
           skills: demand.skills,
           experience_years: demand.experience_years,
           channels: demand.channels,
+          billing_period_type: demand.billing_period_type ?? null,
+          rate_type: (demand as { rate_type?: string | null }).rate_type ?? null,
         }}
         submitLabel="Save Changes"
         cancelHref={`/dashboard/demands/${id}`}

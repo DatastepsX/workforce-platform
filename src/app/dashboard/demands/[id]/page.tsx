@@ -3,13 +3,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { deleteDemand } from '@/lib/actions/demands';
+import { getAwardsByDemand } from '@/lib/actions/awards';
 import { SendToSuppliersPanel } from './send-to-suppliers';
 import { SuppliersTable } from './suppliers-table';
 import { SubmissionsTable } from './submissions-table';
 import { DeleteButton } from '@/components/DeleteButton';
 import { DemandReadMarker } from './demand-read-marker';
 import { MarkDemandUnreadButton } from './mark-unread-button';
-import type { Demand, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus, ProcessHistoryEntry, TenantConfig } from '@/types/database';
+import type { Demand, UserRole, Supplier, DemandSupplier, Engagement, EngagementStatus, ProcessHistoryEntry, TenantConfig, Award, AwardStatus } from '@/types/database';
 import { SocialMediaTab } from './social-media-tab';
 import { ProcessPanel } from './process-panel';
 import { getDemandHistory, getTenantConfig } from '@/lib/actions/workflow';
@@ -141,6 +142,20 @@ export default async function DemandDetailPage({ params }: PageProps) {
     engagements = (engData ?? []) as Engagement[];
   }
 
+  // Fetch awards for this demand
+  let awards: Award[] = [];
+  if (canViewSubmissions) {
+    awards = await getAwardsByDemand(id);
+  }
+
+  const AWARD_STATUS_META: Record<AwardStatus, { label: string; color: string }> = {
+    pending_approval: { label: 'Pending Approval', color: '#FF9500' },
+    approved:         { label: 'Approved',          color: '#007AFF' },
+    active:           { label: 'Active',            color: '#34C759' },
+    completed:        { label: 'Completed',         color: '#8E8E93' },
+    cancelled:        { label: 'Cancelled',         color: '#FF3B30' },
+  };
+
   const ENG_STATUS_META: Record<EngagementStatus, { label: string; color: string }> = {
     active:    { label: 'Active',    color: '#34C759' },
     completed: { label: 'Completed', color: '#007AFF' },
@@ -257,6 +272,9 @@ export default async function DemandDetailPage({ params }: PageProps) {
       <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] mb-4">
         <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2">Details</p>
         <DetailRow label="Contract Type" value={demand.contract_type.charAt(0).toUpperCase() + demand.contract_type.slice(1)} />
+        {demand.billing_period_type && (
+          <DetailRow label="Billing Period" value={demand.billing_period_type.replace('_', '-').replace(/^\w/, c => c.toUpperCase())} />
+        )}
         <DetailRow label="Location" value={demand.location
           ? `${demand.location}${demand.remote_allowed ? ' · Remote OK' : ''}`
           : demand.remote_allowed ? 'Remote' : undefined} />
@@ -322,6 +340,10 @@ export default async function DemandDetailPage({ params }: PageProps) {
             (demand.status === 'pending_review' && ['super_admin', 'admin', 'recruiter'].includes(role)) ||
             (demand.status === 'pending_approval' && (isApproverRole || isHM || ['super_admin', 'admin', 'recruiter'].includes(role)))
           }
+          canRemove={
+            (demand.status === 'pending_review' && ['super_admin', 'admin', 'recruiter'].includes(role)) ||
+            (demand.status === 'pending_approval' && (isApproverRole || isHM || ['super_admin', 'admin', 'recruiter'].includes(role)))
+          }
           lockedReason={demand.status === 'sourcing' || demand.status === 'pending_review' || demand.status === 'pending_approval' ? null : sendLockedReason(demand.status)}
         />
       )}
@@ -377,6 +399,54 @@ export default async function DemandDetailPage({ params }: PageProps) {
               (role === 'hiring_manager' && !(tenantConfig?.award_msp_offer ?? true))
             }
           />
+        </div>
+      )}
+
+      {/* Awards */}
+      {canViewSubmissions && awards.length > 0 && (
+        <div className="mt-6">
+          <p className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px] mb-3 px-1">
+            Awards
+          </p>
+          <div className="space-y-3">
+            {awards.map(award => {
+              const m = AWARD_STATUS_META[award.status as AwardStatus] ?? AWARD_STATUS_META.pending_approval;
+              return (
+                <Link key={award.id} href={`/dashboard/awards/${award.id}`}>
+                  <div className="bg-white rounded-2xl p-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.1)] transition-shadow flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: m.color + '18', color: m.color }}
+                        >
+                          {m.label}
+                        </span>
+                      </div>
+                      <p className="text-[15px] font-bold text-black">{award.candidate_name}</p>
+                      {award.supplier_name && (
+                        <p className="text-[13px] text-[#8E8E93]">via {award.supplier_name}</p>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {award.rate && (
+                        <p className="text-[15px] font-bold text-black">
+                          {award.currency} {award.rate.toLocaleString()}
+                          <span className="text-[12px] font-normal text-[#8E8E93] ml-1">/{award.rate_type}</span>
+                        </p>
+                      )}
+                      {award.total_amount && (
+                        <p className="text-[12px] text-[#8E8E93]">Total {award.currency} {award.total_amount.toLocaleString()}</p>
+                      )}
+                    </div>
+                    <svg className="w-4 h-4 text-[#C7C7CC] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { NavLink } from './nav-link';
 import { DevUserSwitcher } from '@/components/DevUserSwitcher';
 import { NotificationsBell } from '@/components/NotificationsBell';
+import { DevDebugInfo } from '@/components/DevDebugInfo';
 import type { Notification } from '@/types/database';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -44,14 +45,17 @@ interface SidebarProps {
   pendingReviewCount: number;
   pendingAwardCount: number;
   demandReturnedCount: number;
+  pendingAwardApprovalCount: number;
   notifications: Notification[];
   userId: string;
+  userEmail: string;
+  userName: string;
   signOut: () => Promise<void>;
   switchToUser: (formData: FormData) => Promise<void>;
   allUsers: UserOption[];
 }
 
-export function Sidebar({ displayName, initial, role, tenantId, tenantName, canSeeDemands, newDemandsCount, newSuppliersCount, newCandidatesCount, newSubmissionsCount, newEngagementsCount, pendingApprovalCount, pendingReviewCount, pendingAwardCount, demandReturnedCount, notifications, userId, signOut, switchToUser, allUsers }: SidebarProps) {
+export function Sidebar({ displayName, initial, role, tenantId, tenantName, canSeeDemands, newDemandsCount, newSuppliersCount, newCandidatesCount, newSubmissionsCount, pendingApprovalCount, pendingReviewCount, pendingAwardCount, demandReturnedCount, pendingAwardApprovalCount, notifications, userId, userEmail, userName, signOut, switchToUser, allUsers }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   const close = () => setOpen(false);
@@ -228,16 +232,26 @@ export function Sidebar({ displayName, initial, role, tenantId, tenantName, canS
           )}
 
           {(isAdmin(role) || ['recruiter', 'hiring_manager', 'procurement', 'finance'].includes(role)) && (
-            <NavLink href="/dashboard/engagements">
+            <NavLink href="/dashboard/awards">
               <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 12l2 2 4-4" /><rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
               </svg>
               <span className="flex-1">Awards</span>
-              {newEngagementsCount > 0 && (
-                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#007AFF' }}>
-                  {newEngagementsCount > 99 ? '99+' : newEngagementsCount}
+              {pendingAwardApprovalCount > 0 && (
+                <span className="ml-auto text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#34C759' }}>
+                  {pendingAwardApprovalCount > 99 ? '99+' : pendingAwardApprovalCount}
                 </span>
               )}
+            </NavLink>
+          )}
+
+          {(isAdmin(role) || ['recruiter', 'hiring_manager', 'procurement', 'finance', 'supplier', 'candidate'].includes(role)) && (
+            <NavLink href="/dashboard/cost-items">
+              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2"/>
+                <path d="M9 7h6M9 11h6M9 15h4"/>
+              </svg>
+              Cost Items
             </NavLink>
           )}
 
@@ -301,6 +315,21 @@ export function Sidebar({ displayName, initial, role, tenantId, tenantName, canS
                     </svg>
                     Supplier Categories
                   </NavLink>
+                  <NavLink href="/dashboard/settings/cost-items">
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                      <rect x="9" y="3" width="6" height="4" rx="1" />
+                      <path d="M9 12h6M9 16h4" />
+                    </svg>
+                    Cost Items
+                  </NavLink>
+                  <NavLink href="/dashboard/settings/compliance-rules">
+                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <path d="M9 12l2 2 4-4" />
+                    </svg>
+                    Compliance
+                  </NavLink>
                 </>
               ) : tenantId ? (
                 <NavLink href={`/dashboard/settings/tenants/${tenantId}`}>
@@ -330,29 +359,45 @@ export function Sidebar({ displayName, initial, role, tenantId, tenantName, canS
         </nav>
 
         {/* User area */}
-        <div className="border-t border-[#E5E5EA] p-3">
-          <div className="flex items-center gap-2 px-2 py-2">
+        <div className="border-t border-[#E5E5EA] px-3 pt-3 pb-2">
+          {/* Row 1 — Identity + bell */}
+          <div className="flex items-center gap-2.5 px-2 py-1.5">
             <div
-              className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[13px] font-bold flex-shrink-0"
               style={{ backgroundColor: '#007AFF' }}
             >
               {initial}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold text-black truncate leading-tight">{displayName}</p>
-              <p className="text-[10px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
+              <p className="text-[13px] font-semibold text-black truncate leading-tight">{displayName}</p>
+              <p className="text-[11px] text-[#8E8E93] leading-tight">{ROLE_LABELS[role] ?? role}</p>
             </div>
             <NotificationsBell initial={notifications} userId={userId} />
-            <DevUserSwitcher switchAction={switchToUser} allUsers={allUsers} />
           </div>
-          <form action={signOut} className="mt-1">
-            <button
-              type="submit"
-              className="w-full text-left px-3 py-1.5 rounded-lg text-[13px] text-[#FF3B30] hover:bg-[#FF3B30]/8 transition-colors"
-            >
-              Sign out
-            </button>
-          </form>
+          {/* Row 2 — Dev tools + sign out */}
+          <div className="flex items-center gap-0.5 px-2 mt-0.5">
+            <DevDebugInfo userId={userId} userEmail={userEmail} userRole={role} userName={userName} tenantId={tenantId} tenantName={tenantName} />
+            <DevUserSwitcher switchAction={switchToUser} allUsers={allUsers} />
+            {role === 'super_admin' && (
+              <a
+                href="/dashboard/dev/test-scenarios"
+                title="Workflow test scenarios"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[12px] transition-colors flex-shrink-0 hover:bg-[#F2F2F7]"
+                style={{ color: '#8E8E93' }}
+              >
+                🧪
+              </a>
+            )}
+            <div className="flex-1" />
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="px-2 py-1 rounded-lg text-[12px] text-[#FF3B30] hover:bg-[#FF3B30]/8 transition-colors"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
     </>

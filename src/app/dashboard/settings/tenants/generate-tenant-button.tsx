@@ -24,7 +24,7 @@ export function GenerateTenantButton() {
         const res = await generateTestTenant();
         setResult(res);
       } catch (e) {
-        setResult({ tenantId: '', tenantName: '', slug: '', industry: '', users: [], suppliers: [], candidatesCreated: 0, error: (e as Error).message });
+        setResult({ tenantId: '', tenantName: '', slug: '', industry: '', users: [], suppliers: [], candidatesCreated: 0, laddersCreated: 0, orgUnitsCreated: 0, jobDescriptionsCreated: 0, supplierCategoriesCreated: 0, costItemsEnabled: false, error: (e as Error).message });
       }
     });
   }
@@ -112,6 +112,18 @@ export function GenerateTenantButton() {
                   )}
                   {result.candidatesCreated > 0 && (
                     <span className="text-[12px] font-medium px-3 py-1 rounded-full bg-[#5856D6]/10 text-[#5856D6]">✓ {result.candidatesCreated} candidates generated</span>
+                  )}
+                  {result.laddersCreated > 0 && (
+                    <span className="text-[12px] font-medium px-3 py-1 rounded-full bg-[#FF9500]/10 text-[#FF9500]">✓ {result.laddersCreated} career ladders created</span>
+                  )}
+                  {(result.orgUnitsCreated ?? 0) > 0 && (
+                    <span className="text-[12px] font-medium px-3 py-1 rounded-full bg-[#AF52DE]/10 text-[#AF52DE]">✓ {result.orgUnitsCreated} org units + {result.jobDescriptionsCreated ?? 0} job descriptions</span>
+                  )}
+                  {(result.supplierCategoriesCreated ?? 0) > 0 && (
+                    <span className="text-[12px] font-medium px-3 py-1 rounded-full bg-[#30B0C7]/10 text-[#30B0C7]">✓ {result.supplierCategoriesCreated} supplier categories</span>
+                  )}
+                  {result.costItemsEnabled && (
+                    <span className="text-[12px] font-medium px-3 py-1 rounded-full bg-[#34C759]/10 text-[#1C7B3A]">✓ Cost items enabled</span>
                   )}
                 </div>
 

@@ -37,6 +37,7 @@ export default async function CandidateDetailPage({ params }: PageProps) {
 
   const { data: me } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (!['super_admin', 'admin', 'recruiter'].includes(me?.role ?? '')) redirect('/dashboard');
+  const canEdit = ['super_admin', 'admin', 'recruiter'].includes(me?.role ?? '');
 
   const [{ data: cpData }, { data: profileData }, { data: ratingsData }] = await Promise.all([
     supabase.from('candidate_profiles').select('*').eq('id', id).single(),
@@ -91,13 +92,27 @@ export default async function CandidateDetailPage({ params }: PageProps) {
                 <h1 className="text-[24px] font-bold tracking-tight text-black leading-tight">{name}</h1>
                 {cp.headline && <p className="text-[16px] text-[#3C3C43] mt-0.5">{cp.headline}</p>}
               </div>
-              <span
-                className="text-[12px] font-semibold px-3 py-1.5 rounded-full flex-shrink-0 flex items-center gap-1.5"
-                style={{ backgroundColor: availColor + '18', color: availColor }}
-              >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: availColor }} />
-                {AVAIL_LABELS[cp.availability_type]}
-              </span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {canEdit && (
+                  <Link
+                    href={`/dashboard/candidates/${id}/edit`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-[13px] font-medium border border-[#E5E5EA] text-[#3C3C43] hover:bg-[#F2F2F7] transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit
+                  </Link>
+                )}
+                <span
+                  className="text-[12px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                  style={{ backgroundColor: availColor + '18', color: availColor }}
+                >
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: availColor }} />
+                  {AVAIL_LABELS[cp.availability_type]}
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-2 text-[13px] text-[#8E8E93]">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 const ROLE_META: Record<string, { label: string; color: string }> = {
   super_admin:    { label: 'Super Admin',     color: '#FF9500' },
@@ -29,28 +29,47 @@ interface Props {
   allUsers: UserOption[];
 }
 
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-6 h-6 rounded-md flex items-center justify-center text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors flex-shrink-0"
+    >
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+    </button>
+  );
+}
+
 export function DevUserSwitcher({ switchAction, allUsers }: Props) {
   const [open, setOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
 
   const close = () => { setOpen(false); setSelectedRole(null); };
+  const backToRoles = () => setSelectedRole(null);
 
-  // Only show roles that actually have users
   const availableRoles = ROLE_ORDER.filter(r => allUsers.some(u => u.role === r));
 
-  const usersForRole = selectedRole
-    ? allUsers.filter(u => u.role === selectedRole).sort((a, b) => a.displayName.localeCompare(b.displayName))
-    : [];
+  const usersForRole = useMemo(() => {
+    if (!selectedRole) return [];
+    return allUsers.filter(u => u.role === selectedRole)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [allUsers, selectedRole]);
+
+  const step: 'roles' | 'users' = !selectedRole ? 'roles' : 'users';
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold tracking-wide text-[#8E8E93] bg-[#F2F2F7] hover:bg-[#E5E5EA] transition-colors select-none"
+        title="Switch user"
+        className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors hover:bg-[#F2F2F7] flex-shrink-0"
       >
-        DEV
-        <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 9l6 6 6-6" />
+        <svg className="w-[17px] h-[17px] text-[#8E8E93]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M19 8l3 3-3 3M22 11h-7"/>
         </svg>
       </button>
 
@@ -58,10 +77,10 @@ export function DevUserSwitcher({ switchAction, allUsers }: Props) {
         <>
           <div className="fixed inset-0 z-40" onClick={close} />
 
-          <div className="absolute bottom-8 left-0 z-50 w-60 bg-white rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.14)] border border-[#E5E5EA] overflow-hidden">
+          <div className="absolute bottom-8 left-0 z-50 w-64 bg-white rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.14)] border border-[#E5E5EA] overflow-hidden">
 
             {/* Step 1: Role picker */}
-            {!selectedRole && (
+            {step === 'roles' && (
               <>
                 <div className="px-3 pt-2.5 pb-2 border-b border-[#F2F2F7]">
                   <p className="text-[10px] font-semibold text-[#8E8E93] uppercase tracking-wider">Switch User · Select Role</p>
@@ -89,21 +108,16 @@ export function DevUserSwitcher({ switchAction, allUsers }: Props) {
               </>
             )}
 
-            {/* Step 2: User list for selected role */}
-            {selectedRole && (
+            {/* Step 2: User list */}
+            {step === 'users' && selectedRole && (
               <>
                 <div className="px-3 pt-2.5 pb-2 border-b border-[#F2F2F7] flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedRole(null)}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors flex-shrink-0"
-                  >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
-                  </button>
+                  <BackButton onClick={backToRoles} />
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ROLE_META[selectedRole]?.color ?? '#8E8E93' }} />
-                    <p className="text-[11px] font-semibold text-black truncate">{ROLE_META[selectedRole]?.label ?? selectedRole}</p>
+                    <p className="text-[11px] font-semibold text-black truncate">
+                      {ROLE_META[selectedRole]?.label ?? selectedRole}
+                    </p>
                   </div>
                 </div>
                 <div className="max-h-56 overflow-y-auto py-1">

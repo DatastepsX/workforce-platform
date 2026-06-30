@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createTenant } from '@/lib/actions/tenants';
@@ -9,10 +10,18 @@ export default async function TenantsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (!['admin', 'super_admin'].includes(profile?.role ?? '')) redirect('/dashboard');
+  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single();
+  const role = profile?.role ?? '';
 
-  const { data: tenants } = await supabase
+  // admin goes directly to their own tenant config; super_admin sees the list
+  if (role === 'admin') {
+    if (profile?.tenant_id) redirect(`/dashboard/settings/tenants/${profile.tenant_id}`);
+    else redirect('/dashboard');
+  }
+  if (role !== 'super_admin') redirect('/dashboard');
+
+  const admin = createAdminClient();
+  const { data: tenants } = await admin
     .from('tenants')
     .select('*')
     .order('name');

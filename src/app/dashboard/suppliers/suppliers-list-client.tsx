@@ -11,6 +11,7 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
+  const [showAllSpecs, setShowAllSpecs] = useState(false);
 
   useEffect(() => { markSupplierNotificationsRead(); }, []);
 
@@ -80,12 +81,12 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
 
       {/* Specialization chips */}
       {allSpecs.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {allSpecs.map(spec => (
+        <div className="flex flex-wrap gap-1.5 mb-4 items-center">
+          {(showAllSpecs ? allSpecs : allSpecs.slice(0, 8)).map(spec => (
             <button
               key={spec}
               onClick={() => toggleSpec(spec)}
-              className={`text-[12px] font-medium px-3 py-1 rounded-full transition-colors border ${
+              className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full transition-colors border ${
                 selectedSpecs.includes(spec)
                   ? 'bg-[#007AFF] text-white border-[#007AFF]'
                   : 'bg-white text-[#3C3C43] border-[#E5E5EA] hover:border-[#007AFF] hover:text-[#007AFF]'
@@ -94,12 +95,17 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
               {spec}
             </button>
           ))}
-          {selectedSpecs.length > 0 && (
+          {allSpecs.length > 8 && (
             <button
-              onClick={() => setSelectedSpecs([])}
-              className="text-[12px] text-[#FF3B30] hover:opacity-70 transition-opacity ml-1"
+              onClick={() => setShowAllSpecs(v => !v)}
+              className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-[#F2F2F7] text-[#8E8E93] hover:bg-[#E5E5EA] transition-colors border border-transparent"
             >
-              Clear
+              {showAllSpecs ? 'Show less' : `+${allSpecs.length - 8} more`}
+            </button>
+          )}
+          {selectedSpecs.length > 0 && (
+            <button onClick={() => setSelectedSpecs([])} className="text-[11px] text-[#FF3B30] hover:opacity-70 transition-opacity ml-1 font-medium">
+              ✕ Clear
             </button>
           )}
         </div>
@@ -141,11 +147,11 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
                   </p>
                   {s.specializations.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
-                      {s.specializations.map(spec => (
+                      {s.specializations.slice(0, 4).map(spec => (
                         <button
                           key={spec}
                           onClick={() => toggleSpec(spec)}
-                          className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                          className={`text-[10px] px-2 py-0.5 rounded-full transition-colors font-medium ${
                             selectedSpecs.includes(spec)
                               ? 'bg-[#007AFF] text-white'
                               : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#007AFF]/10 hover:text-[#007AFF]'
@@ -154,6 +160,11 @@ export function SuppliersListClient({ suppliers, role }: { suppliers: Supplier[]
                           {spec}
                         </button>
                       ))}
+                      {s.specializations.length > 4 && (
+                        <span className="text-[10px] bg-[#F2F2F7] text-[#8E8E93] px-2 py-0.5 rounded-full font-medium">
+                          +{s.specializations.length - 4}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

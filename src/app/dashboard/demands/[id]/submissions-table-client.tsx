@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useTransition, useMemo, useCallback } from 'react';
-import { updateSubmissionStatus, awardSubmission, analyzeSkillMatchAI } from '@/lib/actions/submissions';
+import { useState, useTransition, useMemo, useCallback, useRef, useEffect } from 'react';
+import { updateSubmissionStatus, analyzeSkillMatchAI, saveAiMatchScore } from '@/lib/actions/submissions';
 import type { AIMatchResult } from '@/lib/actions/submissions';
+import { createAward } from '@/lib/actions/awards';
+import type { CreateAwardInput } from '@/lib/actions/awards';
 import { createEngagement } from '@/lib/actions/engagements';
 import { addInterview, updateInterview, deleteInterview } from '@/lib/actions/interviews';
 import type { SubmissionStatus, SubmissionInterview, UserRole } from '@/types/database';
@@ -13,10 +15,11 @@ const STATUS_META: Record<SubmissionStatus, { label: string; color: string }> = 
   interview:   { label: 'Interview',   color: '#FF9500' },
   offer:       { label: 'Offer',       color: '#34C759' },
   hired:       { label: 'Hired',       color: '#34C759' },
+  awarded:     { label: 'Awarded',     color: '#AF52DE' },
   rejected:    { label: 'Rejected',    color: '#FF3B30' },
 };
 
-const STATUS_ORDER: SubmissionStatus[] = ['proposed', 'shortlisted', 'interview', 'offer', 'hired', 'rejected'];
+const STATUS_ORDER: SubmissionStatus[] = ['proposed', 'shortlisted', 'interview', 'offer', 'awarded', 'rejected'];
 
 export interface SubmissionRow {
   id: string;
@@ -38,19 +41,21 @@ export interface SubmissionRow {
   rateType: string | null;
   cvSignedUrl: string | null;
   score: number | null;
+  aiScore: number | null;
   matchedSkills: string[];
   interviews: SubmissionInterview[];
 }
 
-function MatchBadge({ score }: { score: number | null }) {
+function MatchBadge({ score, isAi }: { score: number | null; isAi?: boolean }) {
   if (score === null) return <span className="text-[13px] text-[#C7C7CC]">—</span>;
-  const color = score >= 80 ? '#34C759' : score >= 50 ? '#007AFF' : score >= 25 ? '#FF9500' : '#8E8E93';
+  const barColor = isAi ? '#AF52DE' : (score >= 80 ? '#34C759' : score >= 50 ? '#007AFF' : score >= 25 ? '#FF9500' : '#8E8E93');
   return (
-    <div className="flex items-center gap-2 min-w-[72px]">
+    <div className="flex items-center gap-1.5 min-w-[80px]">
       <div className="flex-1 h-1.5 rounded-full bg-[#F2F2F7] overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: barColor }} />
       </div>
-      <span className="text-[12px] font-semibold tabular-nums" style={{ color }}>{score}%</span>
+      <span className="text-[12px] font-semibold tabular-nums" style={{ color: barColor }}>{score}%</span>
+      {isAi && <span className="text-[9px] font-bold px-1 py-px rounded-full leading-none" style={{ backgroundColor: '#AF52DE18', color: '#AF52DE' }}>AI</span>}
     </div>
   );
 }
@@ -338,50 +343,161 @@ function CommissionPanel({
 
 function AwardPanel({
   row,
+  demandTitle,
+  demandStartDate,
+  demandEndDate,
+  contractType,
   onAwarded,
 }: {
   row: SubmissionRow;
+  demandTitle: string;
+  demandStartDate: string;
+  demandEndDate: string;
+  contractType: string;
   onAwarded: () => void;
 }) {
+  const defaultRateType = row.rateType ?? CONTRACT_RATE_DEFAULTS[contractType] ?? 'daily';
   const [isPending, startTransition] = useTransition();
-  const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate]   = useState(demandStartDate);
+  const [endDate, setEndDate]       = useState(demandEndDate);
+  const [rate, setRate]             = useState(String(row.proposedRate ?? ''));
+  const [rateType, setRateType]     = useState(defaultRateType);
+  const [currency, setCurrency]     = useState('EUR');
+  const [notes, setNotes]           = useState('');
+  const [error, setError]           = useState<string | null>(null);
+  const [totalOverride, setTotalOverride] = useState<string>('');
+  const [priceLocked, setPriceLocked] = useState(false);
 
-  function handleAward() {
+  const inp = 'w-full bg-[#F2F2F7] rounded-lg px-3 py-2 text-[13px] text-black placeholder:text-[#8E8E93] outline-none border-[1.5px] border-transparent focus:border-[#34C759] focus:bg-white transition-colors';
+
+  const isPermanent = contractType === 'permanent';
+
+  const calc = useMemo(() => {
+    const r = parseFloat(rate) || 0;
+    if (!r || !startDate || !endDate) return null;
+    try {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      if (isNaN(s.getTime()) || isNaN(e.getTime()) || s > e) return null;
+      const calendarDays = Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
+      const businessDays = countBusinessDays(startDate, endDate);
+      let total = 0, formula = '';
+      if (rateType === 'daily')        { total = businessDays * r; formula = `${businessDays} business days × ${r.toLocaleString()} ${currency}`; }
+      else if (rateType === 'hourly')  { total = businessDays * 8 * r; formula = `${businessDays} days × 8 hrs × ${r.toLocaleString()} ${currency}`; }
+      else if (rateType === 'annual')  { const m = businessDays / 21; total = (r / 12) * m; formula = `${r.toLocaleString()} ${currency}/yr ÷ 12 × ${m.toFixed(1)} months`; }
+      else if (rateType === 'monthly') { const m = businessDays / 21; total = m * r; formula = `${m.toFixed(1)} months × ${r.toLocaleString()} ${currency}`; }
+      else { total = r; formula = `Fixed fee ${r.toLocaleString()} ${currency}`; }
+      if (!priceLocked) setTimeout(() => setTotalOverride(String(Math.round(total))), 0);
+      return { calendarDays, businessDays, total, formula };
+    } catch { return null; }
+  }, [startDate, endDate, rate, rateType, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submit = useCallback(() => {
     setError(null);
     startTransition(async () => {
-      const result = await awardSubmission(row.id, row.demandId, note || undefined);
+      const overrideVal = parseFloat(totalOverride) || null;
+      const calcVal = calc?.total ? Math.round(calc.total) : null;
+      const finalTotal = overrideVal ?? calcVal;
+      const isLocked = priceLocked || (overrideVal !== null && overrideVal !== calcVal);
+      const input: CreateAwardInput = {
+        demandId:       row.demandId,
+        submissionId:   row.id,
+        demandTitle,
+        candidateName:  row.candidateName,
+        candidateEmail: row.candidateEmail,
+        supplierId:     row.supplierId,
+        supplierName:   row.supplierName,
+        startDate, endDate, rate, rateType, currency, notes,
+        totalAmount:    finalTotal,
+        priceLocked:    isLocked,
+      };
+      const result = await createAward(input);
       if (result.error) { setError(result.error); return; }
       onAwarded();
     });
-  }
+  }, [row, demandTitle, startDate, endDate, rate, rateType, currency, notes, totalOverride, priceLocked, calc, onAwarded, startTransition]);
+
+  const rateLabel = isPermanent
+    ? (rateType === 'annual' ? 'Annual Salary' : 'Monthly Salary')
+    : rateType === 'daily' ? 'Day Rate' : rateType === 'hourly' ? 'Hourly Rate' : 'Rate';
 
   return (
     <div className="mt-3 pt-3 border-t border-[#E5E5EA] space-y-3">
-      <div className="bg-[#34C759]/8 rounded-xl p-3.5 border border-[#34C759]/20">
-        <p className="text-[12px] font-semibold text-[#34C759] mb-1">Award Candidate</p>
+      <div className="bg-[#34C759]/8 rounded-xl p-3 border border-[#34C759]/20">
+        <p className="text-[12px] font-semibold text-[#34C759] mb-0.5">Create Award</p>
         <p className="text-[12px] text-[#3C3C43] leading-snug">
-          This will move the demand to the <strong>Award</strong> stage and mark <strong>{row.candidateName}</strong> as the selected candidate.
+          Creates a formal award record for <strong>{row.candidateName}</strong> with its own approval workflow. Moves the demand to the Award stage.
         </p>
       </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Start Date</label>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inp} />
+        </div>
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">End Date</label>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inp} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">{rateLabel}</label>
+          <input type="number" min="0" value={rate} onChange={e => setRate(e.target.value)} placeholder="0" className={inp} />
+        </div>
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Unit</label>
+          <select value={rateType} onChange={e => setRateType(e.target.value)} className={inp}>
+            {isPermanent ? (
+              <><option value="monthly">Monthly</option><option value="annual">Annual</option></>
+            ) : (
+              <><option value="daily">Per Day</option><option value="hourly">Per Hour</option><option value="monthly">Per Month</option><option value="fixed">Fixed Fee</option></>
+            )}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] text-[#8E8E93] mb-1 block">Currency</label>
+          <select value={currency} onChange={e => setCurrency(e.target.value)} className={inp}>
+            <option>EUR</option><option>CHF</option><option>GBP</option><option>USD</option>
+          </select>
+        </div>
+      </div>
+
+      {calc && (
+        <div className="bg-[#34C759]/8 rounded-xl p-3 border border-[#34C759]/15 space-y-2">
+          <p className="text-[10px] font-semibold text-[#34C759] uppercase tracking-[0.5px]">Cost Estimate</p>
+          <p className="text-[11px] text-[#8E8E93]">{calc.formula}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-[#8E8E93]">{currency}</span>
+            <input
+              type="number" min="0" value={totalOverride}
+              onChange={e => {
+                setTotalOverride(e.target.value);
+                const v = parseFloat(e.target.value);
+                setPriceLocked(!isNaN(v) && v !== Math.round(calc.total));
+              }}
+              className="flex-1 bg-white rounded-lg px-3 py-1.5 text-[16px] font-bold text-black outline-none border-[1.5px] border-transparent focus:border-[#34C759] transition-colors"
+            />
+            {priceLocked && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FF9500]/15 text-[#FF9500]">Locked</span>}
+          </div>
+        </div>
+      )}
+
       <div>
-        <label className="text-[11px] text-[#8E8E93] mb-1 block">Note (optional)</label>
-        <textarea
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          rows={2}
-          placeholder="Reason for selection, conditions, next steps…"
-          className="w-full bg-[#F2F2F7] rounded-lg px-3 py-2 text-[13px] text-black placeholder:text-[#8E8E93] outline-none border-[1.5px] border-transparent focus:border-[#34C759] focus:bg-white transition-colors resize-none"
-        />
+        <label className="text-[11px] text-[#8E8E93] mb-1 block">Notes (optional)</label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+          className={inp.replace('focus:border-[#34C759]', 'focus:border-[#007AFF]') + ' resize-none'}
+          placeholder="Reason for selection, conditions, next steps…" />
       </div>
       {error && <p className="text-[12px] text-[#FF3B30]">{error}</p>}
       <button
-        onClick={handleAward}
+        onClick={submit}
         disabled={isPending}
         className="w-full py-2.5 rounded-[10px] text-white text-[14px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
         style={{ backgroundColor: '#34C759', boxShadow: '0 2px 8px rgba(52,199,89,0.3)' }}
       >
-        {isPending ? 'Processing…' : '✓ Confirm Award'}
+        {isPending ? 'Creating Award…' : '★ Create Award'}
       </button>
     </div>
   );
@@ -399,6 +515,7 @@ function CandidateDrawer({
   demandStatus,
   onClose,
   onStatusChange,
+  onAiScoreUpdate,
 }: {
   row: SubmissionRow;
   demandTitle: string;
@@ -411,6 +528,7 @@ function CandidateDrawer({
   demandStatus: string;
   onClose: () => void;
   onStatusChange: (id: string, status: SubmissionStatus) => void;
+  onAiScoreUpdate: (id: string, score: number) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [showCommission, setShowCommission] = useState(false);
@@ -431,7 +549,12 @@ function CandidateDrawer({
     );
     setAiMatchLoading(false);
     if (error) { setAiMatchError(error); return; }
-    setAiMatch(result ?? null);
+    const matchResult = result ?? null;
+    setAiMatch(matchResult);
+    if (matchResult) {
+      saveAiMatchScore(row.id, matchResult.score);
+      onAiScoreUpdate(row.id, matchResult.score);
+    }
   }
 
   function moveStatus(status: SubmissionStatus) {
@@ -731,6 +854,10 @@ function CandidateDrawer({
             {showAward && canAward && isScreening && (
               <AwardPanel
                 row={row}
+                demandTitle={demandTitle}
+                demandStartDate={demandStartDate}
+                demandEndDate={demandEndDate}
+                contractType={contractType}
                 onAwarded={() => {
                   onStatusChange(row.id, 'offer');
                   setShowAward(false);
@@ -836,7 +963,13 @@ function InterviewSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           path: window.location.pathname,
-          fields: ['interviewer_name', 'interview_date', 'interview_type', 'rating', 'notes'],
+          fields: [
+            { name: 'interviewer_name', type: 'text', label: 'Interviewer Name', placeholder: 'Anna Schmidt' },
+            { name: 'interview_date', type: 'date', label: 'Interview Date' },
+            { name: 'interview_type', type: 'select', label: 'Interview Type', options: Object.entries(INTERVIEW_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l })) },
+            { name: 'rating', type: 'number', label: 'Rating (1–5)', placeholder: '4' },
+            { name: 'notes', type: 'textarea', label: 'Interview Notes', placeholder: 'Key observations…' },
+          ],
           pageContext: `Interview planning for candidate ${row.candidateName}`,
         }),
       });
@@ -1049,13 +1182,251 @@ function InterviewSection({
   );
 }
 
+// ── Match Info Popover ──────────────────────────────────────────────────────
+
+function MatchInfoPopover({
+  score,
+  matchedSkills,
+  candidateSkills,
+  demandSkills,
+  candidateName,
+  demandTitle,
+  submissionId,
+  anchorRect,
+  triggerRef,
+  onClose,
+  onAiScoreUpdate,
+}: {
+  score: number | null;
+  matchedSkills: string[];
+  candidateSkills: string[];
+  demandSkills: string[];
+  candidateName: string;
+  demandTitle: string;
+  submissionId: string;
+  anchorRect: DOMRect;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+  onAiScoreUpdate: (id: string, score: number) => void;
+}) {
+  const [aiMatch, setAiMatch] = useState<AIMatchResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (popRef.current?.contains(e.target as Node)) return;
+      onClose();
+    }
+    function onScroll() { onClose(); }
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [onClose, triggerRef]);
+
+  async function handleAiAnalysis() {
+    if (!candidateSkills.length || !demandSkills.length) return;
+    setAiLoading(true);
+    setAiError(null);
+    const { result, error } = await analyzeSkillMatchAI(candidateSkills, demandSkills, candidateName, demandTitle);
+    setAiLoading(false);
+    if (error) { setAiError(error); return; }
+    const matchResult = result ?? null;
+    setAiMatch(matchResult);
+    if (matchResult) {
+      saveAiMatchScore(submissionId, matchResult.score);
+      onAiScoreUpdate(submissionId, matchResult.score);
+    }
+  }
+
+  const unmatchedDemandSkills = demandSkills.filter(
+    s => !matchedSkills.some(m => m.toLowerCase() === s.toLowerCase()),
+  );
+  const color = score !== null
+    ? (score >= 80 ? '#34C759' : score >= 50 ? '#007AFF' : score >= 25 ? '#FF9500' : '#8E8E93')
+    : '#8E8E93';
+
+  const popW = 288;
+  const top = anchorRect.bottom + 6;
+  const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - popW - 8));
+
+  return (
+    <div
+      ref={popRef}
+      style={{ position: 'fixed', top, left, width: popW, zIndex: 1000 }}
+      className="bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.18)] border border-[#E5E5EA] p-4 space-y-3"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.5px]">Match Details</p>
+        <button
+          onClick={onClose}
+          className="w-5 h-5 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-[#8E8E93] hover:bg-[#F2F2F7] transition-colors"
+        >
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {score !== null && (
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="flex-1 h-1.5 rounded-full bg-[#F2F2F7] overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+            </div>
+            <span className="text-[13px] font-bold tabular-nums" style={{ color }}>{score}%</span>
+          </div>
+          <p className="text-[11px] text-[#8E8E93]">
+            Keyword overlap · {matchedSkills.length} of {demandSkills.length} required skills matched
+          </p>
+        </div>
+      )}
+
+      {matchedSkills.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-[#34C759] uppercase tracking-[0.5px] mb-1.5">Matched</p>
+          <div className="flex flex-wrap gap-1">
+            {matchedSkills.map(s => (
+              <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-[#34C759]/10 text-[#34C759] font-medium">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {unmatchedDemandSkills.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-[#FF3B30] uppercase tracking-[0.5px] mb-1.5">Missing from candidate</p>
+          <div className="flex flex-wrap gap-1">
+            {unmatchedDemandSkills.map(s => (
+              <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-[#FF3B30]/10 text-[#FF3B30]">{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!aiMatch && (
+        <button
+          onClick={handleAiAnalysis}
+          disabled={aiLoading || !candidateSkills.length || !demandSkills.length}
+          className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-80 disabled:opacity-40"
+          style={{ backgroundColor: '#AF52DE18', color: '#AF52DE' }}
+        >
+          {aiLoading ? (
+            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          ) : '✨'}
+          {aiLoading ? 'Analyzing…' : 'AI Semantic Analysis'}
+        </button>
+      )}
+
+      {aiError && <p className="text-[11px] text-[#FF3B30]">{aiError}</p>}
+
+      {aiMatch && (
+        <div className="bg-gradient-to-br from-[#AF52DE]/8 to-[#AF52DE]/4 rounded-xl p-3 border border-[#AF52DE]/15 space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 rounded-full bg-[#E5E5EA] overflow-hidden">
+              <div className="h-full rounded-full" style={{
+                width: `${aiMatch.score}%`,
+                backgroundColor: aiMatch.score >= 80 ? '#34C759' : aiMatch.score >= 50 ? '#AF52DE' : '#FF9500',
+              }} />
+            </div>
+            <span className="text-[13px] font-bold" style={{ color: aiMatch.score >= 80 ? '#34C759' : aiMatch.score >= 50 ? '#AF52DE' : '#FF9500' }}>
+              {aiMatch.score}%
+            </span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#AF52DE]/15 text-[#AF52DE]">AI</span>
+          </div>
+          <p className="text-[12px] text-[#3C3C43] leading-snug">{aiMatch.summary}</p>
+          {aiMatch.missingSkills.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              <span className="text-[10px] text-[#FF3B30] font-semibold self-center">Missing:</span>
+              {aiMatch.missingSkills.map(s => (
+                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#FF3B30]/10 text-[#FF3B30]">{s}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MatchCell({
+  score,
+  isAi,
+  submissionId,
+  matchedSkills,
+  candidateSkills,
+  demandSkills,
+  candidateName,
+  demandTitle,
+  onAiScoreUpdate,
+}: {
+  score: number | null;
+  isAi: boolean;
+  submissionId: string;
+  matchedSkills: string[];
+  candidateSkills: string[];
+  demandSkills: string[];
+  candidateName: string;
+  demandTitle: string;
+  onAiScoreUpdate: (id: string, score: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function handleToggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    if (btnRef.current) setAnchorRect(btnRef.current.getBoundingClientRect());
+    setOpen(true);
+  }
+
+  return (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <MatchBadge score={score} isAi={isAi} />
+      <button
+        ref={btnRef}
+        onClick={handleToggle}
+        className="w-4 h-4 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#8E8E93] hover:bg-[#E5E5EA] transition-colors flex-shrink-0"
+        title="View match details"
+        aria-label="Match details"
+      >
+        <span className="text-[9px] font-bold leading-none select-none">i</span>
+      </button>
+      {open && anchorRect && (
+        <MatchInfoPopover
+          score={score}
+          matchedSkills={matchedSkills}
+          candidateSkills={candidateSkills}
+          demandSkills={demandSkills}
+          candidateName={candidateName}
+          demandTitle={demandTitle}
+          submissionId={submissionId}
+          anchorRect={anchorRect}
+          triggerRef={btnRef}
+          onClose={() => setOpen(false)}
+          onAiScoreUpdate={onAiScoreUpdate}
+        />
+      )}
+    </div>
+  );
+}
+
 const STATUS_ALL_FILTER: { value: SubmissionStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'proposed', label: 'Proposed' },
   { value: 'shortlisted', label: 'Shortlisted' },
   { value: 'interview', label: 'Interview' },
   { value: 'offer', label: 'Offer' },
-  { value: 'hired', label: 'Hired' },
+  { value: 'awarded', label: 'Awarded' },
   { value: 'rejected', label: 'Rejected' },
 ];
 
@@ -1128,6 +1499,11 @@ export function SubmissionsTableClient({
   function handleStatusChange(id: string, status: SubmissionStatus) {
     setRows(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     setSelected(prev => prev?.id === id ? { ...prev, status } : prev);
+  }
+
+  function handleAiScoreUpdate(id: string, score: number) {
+    setRows(prev => prev.map(r => r.id === id ? { ...r, aiScore: score } : r));
+    setSelected(prev => prev?.id === id ? { ...prev, aiScore: score } : prev);
   }
 
   if (rows.length === 0) {
@@ -1234,7 +1610,17 @@ export function SubmissionsTableClient({
                       )}
                     </td>
                     <td className="px-3 py-3.5 align-top">
-                      <MatchBadge score={row.score} />
+                      <MatchCell
+                        score={row.aiScore ?? row.score}
+                        isAi={row.aiScore !== null}
+                        submissionId={row.id}
+                        matchedSkills={row.matchedSkills}
+                        candidateSkills={row.candidateSkills}
+                        demandSkills={demandSkills}
+                        candidateName={row.candidateName}
+                        demandTitle={demandTitle}
+                        onAiScoreUpdate={handleAiScoreUpdate}
+                      />
                     </td>
                     <td className="px-3 py-3.5 align-middle w-[150px] max-w-[150px]">
                       {row.candidateSkills.length > 0 ? (
@@ -1311,6 +1697,7 @@ export function SubmissionsTableClient({
           demandStatus={demandStatus}
           onClose={() => setSelected(null)}
           onStatusChange={handleStatusChange}
+          onAiScoreUpdate={handleAiScoreUpdate}
         />
       )}
     </>

@@ -54,6 +54,8 @@ export async function createDemand(formData: FormData) {
     channels,
     experience_years: formData.get('experience_years') ? Number(formData.get('experience_years')) : null,
     priority: formData.get('priority') as DemandPriority,
+    billing_period_type: (formData.get('billing_period_type') as string) || null,
+    rate_type: (formData.get('rate_type') as string) || null,
     status: 'draft' as DemandStatus,
     created_by: user.id,
     tenant_id: tenantId,
@@ -115,8 +117,9 @@ export async function updateDemand(formData: FormData) {
 
   const isApproverEdit = ['procurement', 'finance'].includes(profile?.role ?? '') &&
     demand?.status === 'pending_approval';
+  const isOwnerEdit = demand?.created_by === user.id;
   const canEdit =
-    demand?.created_by === user.id ||
+    isOwnerEdit ||
     ['admin', 'recruiter', 'super_admin'].includes(profile?.role ?? '') ||
     isApproverEdit;
   if (!canEdit) redirect('/dashboard/demands');
@@ -126,8 +129,10 @@ export async function updateDemand(formData: FormData) {
 
   const channels = formData.getAll('channels') as string[];
 
-  // Use admin client for approver roles not covered by standard RLS
-  const dbClient = isApproverEdit ? adminDb : supabase;
+  // Use admin client for roles not fully covered by standard RLS:
+  // approvers editing during pending_approval, and demand owners (HM) editing
+  // their own demand in any status (e.g. after being returned to draft)
+  const dbClient = (isApproverEdit || isOwnerEdit) ? adminDb : supabase;
 
   const { error } = await dbClient.from('demands').update({
     title: formData.get('title') as string,
@@ -143,6 +148,8 @@ export async function updateDemand(formData: FormData) {
     channels,
     experience_years: formData.get('experience_years') ? Number(formData.get('experience_years')) : null,
     priority: formData.get('priority') as DemandPriority,
+    billing_period_type: (formData.get('billing_period_type') as string) || null,
+    rate_type: (formData.get('rate_type') as string) || null,
   }).eq('id', id);
 
   if (error) throw new Error(error.message);

@@ -91,7 +91,7 @@ export async function createSupplier(formData: FormData) {
   } catch { /* non-blocking */ }
 
   revalidatePath('/dashboard/suppliers');
-  redirect('/dashboard/suppliers');
+  redirect(`/dashboard/suppliers/${supplier.id}/edit`);
 }
 
 export async function updateSupplier(formData: FormData) {
@@ -185,6 +185,38 @@ export async function assignSuppliersForReview(demandId: string, supplierIds: st
       notes: `Pre-assigned: ${names}`,
     });
   } catch { /* non-blocking */ }
+
+  revalidatePath(`/dashboard/demands/${demandId}`);
+}
+
+export async function removePreassignedSupplier(demandId: string, supplierId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+
+  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single();
+  const role = profile?.role ?? '';
+
+  const admin = createAdminClient();
+  const { data: demand } = await admin.from('demands').select('status, created_by').eq('id', demandId).single();
+  if (!demand) throw new Error('Demand not found');
+
+  const allowedStatuses = ['pending_review', 'pending_approval'];
+  if (!allowedStatuses.includes(demand.status)) throw new Error('Cannot remove suppliers at this stage');
+
+  const isRecruiterOrAdmin = ['super_admin', 'admin', 'recruiter'].includes(role);
+  const isHM = role === 'hiring_manager' && demand.created_by === user.id;
+  const isApprover = ['procurement', 'finance'].includes(role) && demand.status === 'pending_approval';
+  if (!isRecruiterOrAdmin && !isHM && !isApprover) throw new Error('Not authorized');
+
+  const { error } = await admin
+    .from('demand_suppliers')
+    .delete()
+    .eq('demand_id', demandId)
+    .eq('supplier_id', supplierId)
+    .eq('status', 'preassigned');
+
+  if (error) throw new Error(error.message);
 
   revalidatePath(`/dashboard/demands/${demandId}`);
 }

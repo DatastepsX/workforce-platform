@@ -79,3 +79,165 @@ Each session appends an entry at the end.
 - Deleted: all 44 test auth users via `DELETE FROM auth.users` (kept only super_admin: micciche.alessandro+admin@gmail.com, ID 9d0f6cb3).
 - Created: Velantrix Antriebstechnik SE — Industrial Drive Systems & Motion Control. Full config: MSP review ON, 2-level demand approval (HM → Procurement), 3-level award approval (Procurement → Finance → Admin), MSP screening ON, PO step ON. 11 users all roles, 3 suppliers (Kernbach linked to portal user Markus Kernbach), 3 supplier categories, 10 candidates, 3 career ladders, 4 org units, 10 JDs. Password all users: Test1234!
 - Next: no pending tasks.
+
+### 2026-06-25 — [VSCode]
+- Built: Match Info Popover — ℹ button next to every match % in submissions table; fixed-position popover shows matched skills (green), missing skills (red), AI Semantic Analysis button inline (no drawer needed). Components: MatchCell + MatchInfoPopover in submissions-table-client.tsx.
+- Built: Awards Module — separate awards table with own status workflow (pending_approval → approved → active → completed/cancelled). New pages: /dashboard/awards (list + status filter) and /dashboard/awards/[id] (detail + action buttons). Sidebar Awards link updated to /dashboard/awards. Demand detail now shows Awards section. Migration 039 applied.
+- Built: Upgraded AwardPanel in submission drawer — now captures financial details (rate, dates, cost estimate) before creating award record; calls createAward() action which also moves demand to award status + logs process history.
+- Decided: Award = formal selection with approval workflow; Engagement = execution contract (old Commission flow kept). Future: change orders on awards; auto-create engagement when award approved.
+- Updated: email changelog now includes English writing tips section alongside Better Requirements Writing.
+- Next: no pending tasks.
+
+### 2026-06-26 — [VSCode]
+- Fixed Issue 1: ProcessPanel action buttons now show per-button spinner + "Processing…" label when clicked (useTransition pending). Both primary/danger action buttons and the Confirm button in note dialogs have loading state.
+- Fixed Issue 2: DemandReadMarker now marks demand_pending_review, demand_pending_approval, demand_returned, demand_approved notifications as read when opening a demand. Prevents stale "Review required" bell notification showing after review is complete.
+- Fixed Issue 3: HM pendingApprovalCount changed from demand-count (created_by = user) to notification-count (unread demand_pending_approval notifications for user). Root cause confirmed: Velantrix has hiring_manager as L1 approver, so badge wasn't showing for demands created by admin/others. DB verified: notification_type enum has all types; config demand_approval_role_l1 = 'hiring_manager'.
+- Fixed Issue 4: Added removePreassignedSupplier server action; red × remove button added to pre-assigned supplier entries in SendToSuppliersPanel when canRemove=true (mirrors canAssign logic). Added canRemove prop to panel.
+- Fixed Issue 5: updateDemand server action now uses adminDb when HM edits their own demand (isOwnerEdit), bypassing RLS that blocked post-return edits.
+- Built Issue 6: DevDebugInfo component (indigo ℹ button in sidebar user area next to bell). Shows: timestamp, user/tenant/URL/entity IDs/viewport. Copy button.
+- Deployed to production.
+- Next: no pending tasks.
+
+### 2026-06-27 — [VSCode]
+- Fixed: DevUserSwitcher showed only 1 supplier user when 3 suppliers were assigned to the demand. Root cause: the 3-step client-picker step grouped supplier auth users by profiles.tenant_id, but supplier users don't have tenant_id matching the clients they serve (suppliers are global entities linked via tenant_suppliers, not profiles). Removed the client-picker step entirely; switcher now goes Role → User list showing all supplier users directly.
+- Fixed: Icon alignment in sidebar user area. Bell (w-8 h-8 rounded-xl), debug ℹ (w-8 h-8 rounded-full with heavy shadow), and DEV pill (variable-width text) were inconsistently sized. Made all three w-8 h-8 rounded-xl. Replaced the "DEV↓" text pill with a person-switch SVG icon.
+- Deployed to production.
+- Next: no pending tasks.
+
+### 2026-06-27 — [VSCode] (Session B: 11 UX improvements)
+- Built: AI score persistence — `saveAiMatchScore()` called after every AI analysis (CandidateDrawer + MatchInfoPopover), stored to `candidate_submissions.ai_score`, shown in table with purple "AI" indicator on bar; updates local rows state so table refreshes immediately.
+- Built: `submission_status` enum `awarded` — added to STATUS_META in submissions-table-client, suppliers-table-client, applications-client; STATUS_ORDER swaps "hired" → "awarded" for manual actions; `updateAwardStatus(approved)` now sets linked submission → `awarded`; `updateAwardStatus(active)` sets demand → `filled`.
+- Fixed: Interview AI fill bug — `handleAiFill()` was sending plain strings as `fields`; changed to `FieldInfo[]` objects with name/type/label/options so /api/generate-test-data generates correct typed values.
+- Fixed: DevDataGenerator position — moved from `bottom-6 right-6` to `bottom-6 left-6` (was overlapping CandidateDrawer footer action buttons).
+- Built: Award detail page improvements — responsive DetailRow (flex-col on mobile, flex-row on desktop); `canAct` now includes procurement+finance (not just admin/recruiter); PO number inline edit form (input + Save PO button) calling `updateAwardPO()`; PO shown in Financial Terms section; award approval notifications route to /awards/[id] directly.
+- Built: Awards sidebar badge — replaced `newEngagementsCount` with `pendingAwardApprovalCount` (green badge); layout.tsx queries awards table in pending_approval status scoped to tenant.
+- Built: Dashboard pending approvals — added two new stat cards: "Demands Pending Approval" and "Awards Pending Approval" for approver roles (admin/recruiter/procurement/finance/super_admin); both scoped to tenant.
+- Built: Demand progress bar — 8-segment segmented bar on each demand card showing % through PHASE_ORDER phases; terminal statuses show empty bar with status label; added PHASE_ORDER export from workflow module.
+- DB migration: `20260627000040_submissions_ai_offer_awarded.sql` — adds `ai_score`, `awarded` status, `offer_status`, `offer_note` to candidate_submissions; `po_number` to awards.
+- Deployed to production (https://workforce-platform-omega.vercel.app).
+- Next: Supplier offer acceptance flow (notify supplier on 'offer' status, Accept/Decline on supplier portal) — partially implemented in `respondToOffer()` action but supplier portal UI not built yet.
+
+### 2026-06-27 — [VSCode]
+- Fixed: DevDataGenerator (✨) button was overlapping the sidebar user area on mobile — changed to `hidden md:flex` + `left-60` (desktop only, always outside sidebar)
+- Fixed: Soft skill sliders in AvatarSection had no `name`/`id` attributes, so DevDataGenerator couldn't scan or fill them — added `name={soft_skill_${skill}}` and `id` + `htmlFor` label pairing
+- Built: Career Navigator now shows all company career ladders ("Karriereleitern") with per-candidate skill match % — green = skills candidate already has, gray = missing; sorted recommended (AI-matched) first then by match %; visible even without AI avatar generated; uses adminDb to bypass career_ladders RLS for candidates; added legend to soft skill radar
+- Next: no pending tasks
+
+### 2026-06-28 — [VSCode]
+- Built: Renamed all UI labels "Demands" → "DemandsX" across the entire dashboard and supplier portal (sidebar nav, page titles, breadcrumbs, stat cards, empty-state buttons, filter dropdowns)
+- Changed files: sidebar.tsx, demands/page.tsx, demands/[id]/page.tsx, page.tsx (overview), engagements/page.tsx, submissions/page.tsx, demands/not-found.tsx, supplier-sidebar.tsx, supplier/demands/[id]/submit/page.tsx, social-media/page.tsx, candidates-list-client.tsx
+- Decided: URLs/routes remain unchanged (/dashboard/demands/...) — only displayed text changed; no DB schema or variable names affected
+- Next: no pending tasks
+
+### 2026-06-28 — [VSCode] (Workflow Test Scenarios + E2E Visualizer)
+- Built: `src/lib/workflow/scenarios.ts` — scenario engine: `generateScenarioSteps(config)` produces ordered steps for the full E2E workflow based on tenant config flags; `simulateScenario(config)` validates each step against live `getTransitions()` engine; `buildScenarioReport()` returns pass/fail summary per tenant
+- Built: `src/components/WorkflowVisualizer.tsx` — horizontal scrollable flow diagram showing all 13 possible stages (Draft → MSP Review → Approval L1/L2/L3 → Sourcing → Screening → Award → Award Approval L1/L2/L3 → PO/Contracting → Filled); disabled stages shown dashed/grey with OFF badge; ON/OFF badge per conditional stage; legend for phase colors; embedded in tenant config page
+- Built: `/dashboard/dev/test-scenarios` — super_admin-only page; loads all tenants + configs, runs simulation on page load, shows per-tenant cards with config badges, step-by-step pass/fail results grouped by phase; overall summary bar
+- Added: 🧪 emoji button in sidebar user area (super_admin only) linking to test scenarios page
+- Updated: `.claude/settings.json` — replaced granular permission entries with `Bash(*)`, `Edit(*)`, `Write(*)`, `Read(*)` wildcards + all MCP tools; `additionalDirectories` expanded to cover full project tree; applies to all connections (VSCode + iPhone SSH)
+- Deployed to production
+- Next: no pending tasks
+
+### 2026-06-28 — [VSCode] (Test Scenarios v2 — Happy + Unhappy + History + AI Ideas)
+- Built: Supabase migration `20260628000041_scenario_runs` — stores every run with pass/fail counts, full step_results JSONB, optimization_ideas JSONB, triggered_by, created_by_name
+- Built: `src/lib/workflow/scenarios.ts` full rewrite — happy + unhappy paths; for every workflow-engine step auto-generates TWO unhappy variants: wrong role (must be blocked) + wrong status (must be blocked); actual tenant users assigned to each step by role; coverage gap detection
+- Built: `src/lib/actions/scenario-runs.ts` — `runScenarioAction(tenantId)` fetches config + users, runs simulation, calls claude-haiku for 5 AI optimisation ideas (non-blocking), saves to DB; history helpers
+- Built: `run-button-client.tsx` — compact + full variants with useTransition loading state
+- Rebuilt: test scenarios page — global 4-card summary; per-tenant card with config chips, run badge, delta badge (▼ fixed / ▲ regressed), happy/security step sections, AI ideas panel, run history timeline
+- Updated: tenant config page — run button + last run badge inline in E2E Visualizer card
+- Auto-extend: steps fully derived from TenantConfig + getTransitions(); new config flags → new steps automatically; coverage gap detector flags uncovered actions
+- Deployed to production
+
+### 2026-06-29 — [VSCode]
+- Fixed: ON/OFF badge in E2E Process Flow Visualizer was clipped at the top — added `pt-2` to the stage row flex container in `WorkflowVisualizer.tsx` so the absolute-positioned badge has room
+- Built: `⚡ Optimise` button per AI Optimisation Idea in Workflow Test Scenarios — each idea gets a button + optional comment textarea; on click calls `/api/optimize-idea` which reads CLAUDE.md for context, calls Claude (claude-sonnet-4-6) to produce a full engineering spec, and emails it to developer
+- New files: `optimization-panel-client.tsx` (client component), `src/app/api/optimize-idea/route.ts` (API endpoint, super_admin only)
+- Deployed to production
+
+### 2026-06-29 — [VSCode]
+- Built: 🔧 Fix button on every failing test step (happy + security checks) in Workflow Test Scenarios — calls `/api/fix-step`, Claude diagnoses root cause + writes fix plan, emails developer
+- Built: Cost display on all Optimise/Fix buttons — shows `~$0.02` estimate before click, actual cost (e.g. `$0.0213`) after API returns based on real token usage
+- Updated: `/api/optimize-idea` now returns actual `cost` field; `optimization-panel-client.tsx` shows it after success
+- New files: `failed-step-fix-button.tsx`, `src/app/api/fix-step/route.ts`
+- Deployed to production
+
+### 2026-06-29 — [VSCode] (Cost Item & Compliance Module)
+- Built: Cost Item master data system — `cost_item_categories` (7 categories), `cost_items` (37 items seeded), `cost_item_contract_types` (junction), `cost_item_clients` (per-tenant overrides); migration 042 applied
+- Built: Compliance Framework — `compliance_rules` (18 seeded: DE AÜG, IR35 UK, working time, minimum wage, expense caps), `compliance_rule_clients`, `compliance_validation_logs` (audit trail); migration 043 applied
+- Built: 4 contract types mapped: `perm`, `temp`, `contracting`, `sow` — demand form updated to use new labels
+- Built: `/dashboard/settings/cost-items` — list page with contract-type tabs (All/Temp/Contracting/SOW/Perm), search, delete; create/edit pages with all 16 spec fields
+- Built: `/dashboard/settings/compliance-rules` — list page with filters + severity stat cards; create/edit pages with 17 validation logics, threshold, severity, override toggle
+- Built: `getAvailableCostItems()` engine — dynamic filtering by contract type (with legacy value mapping), country, tenant; `validateEntity()` evaluation engine in compliance.ts
+- Built: Award detail page shows "Applicable Cost Items" section grouped by category based on linked demand's contract type
+- Sidebar: added "Cost Items" + "Compliance" links under Settings (super_admin only)
+- Decided: invoice generation and SAP integration left for future phase (timesheet module needed first); engine + schema ready
+- Deployed to production (https://workforce-platform-omega.vercel.app)
+- Next: no pending tasks
+
+### 2026-06-29 — [VSCode] (Cost Item Module Phase 2)
+- Built: `award_periods` table + `period_cost_entries` table with GENERATED amount column; RLS for staff/supplier/candidate; migration 044 applied
+- Built: `tenant_compliance_rule_overrides` table — per-tenant override of any platform compliance rule (active/threshold/severity/override_allowed); migration 045 applied
+- Built: `/dashboard/cost-items` — main sidebar page (all roles) listing billing periods with status stat cards + search filter
+- Built: `/dashboard/cost-items/[periodId]` — period detail with cost entry form (type/cost item/quantity/unit price), entry cards with approve/reject review buttons for staff, submit button for supplier/candidate, period approve/invoice status transitions
+- Built: Award detail page gains "Billing Periods" section — billing period type selector, "Generate Periods" button (staff/active awards only), list of generated periods with status + link to period detail
+- Built: Per-client compliance rule overrides UI in tenant settings — shows all platform rules with per-tenant override controls (active/severity/threshold/override_allowed + notes + reset button), "OVERRIDDEN" badge when customized
+- Built: Mobile-responsive redesign of cost items config pages — `CostItemsClient` and `ComplianceRulesClient` now show card list on mobile (md:hidden), table on desktop (hidden md:block)
+- Added: "Cost Items" main sidebar nav item (visible to admin/recruiter/hiring_manager/procurement/finance/supplier/candidate)
+- Fixed: `generatePeriodDates` made async (required by Next.js 'use server' file constraint); ESLint fixes for prefer-const + unescaped entities
+- Deployed to production (https://workforce-platform-omega.vercel.app)
+- Next: invoice generation workflow, SAP GL export
+
+### 2026-06-30 — [VSCode] (9 UX/Feature improvements)
+- Fixed: Award page billing period generation crash (Item 8) — `getAvailableCostItems` now has .catch(()=>[]) on award page; Generate button only shows when billing_period_type is set; try/catch in form action prevents Next.js full-page crash when server action throws
+- Built: Billing period type on Demand (Item 7) — new "Billing Period" field on demand form (non-perm contract types); saved in createDemand + updateDemand; inherited automatically when createAward() is called; shown on demand detail page
+- Fixed: Dashboard wording unified Engagements → Awards (Item 9) — "Active Awards" / "Total Awards" from awards table, linking to /dashboard/awards
+- Built: Sticky tab navigation on tenant config page (Item 3) — TenantConfigNav client component with IntersectionObserver highlights active section; tabs: Details | Workflow | Roles | Suppliers | Org & JDs | Compliance | Users
+- Added: billing_period_type field to Demand TypeScript type
+- Agent running in background: client-level test data generation (Items 1, 2, 4, 5, 6) — 15 E2E scenarios per tenant, action log modal, streaming API route
+- Deployed to production (https://workforce-platform-omega.vercel.app) commit 2927642
+- Next: wait for background agent (test data generation); apply final commit after agent completes
+
+### 2026-06-30 — VSCode (E2E Test Data Generator)
+- Built: `/api/generate-tenant-test-data` — streaming SSE POST route; generates 15 E2E scenarios per tenant using admin client (no auth checks); logs each step in real time
+- Built: `GenerateTestDataButton` client component on tenant config page — purple ⚡ button next to RunScenarioButton; opens dark terminal-style modal with live colour-coded log stream; after completion shows summary + "Run E2E Scenarios" button linking to /dashboard/dev/test-scenarios?tenantId=[id]
+- 15 scenarios: Group A Full E2E (5: demand→submission→award→billing periods→cost entries), Group B Demand→Award (5: various statuses), Group C Process only (5: sourcing/pending_approval/cancelled/on_hold/filled)
+- Updated: `generateTestTenant` in tenants.ts now checks cost_items count and returns `costItemsEnabled: boolean`; result modal shows "✓ Cost items enabled" chip
+- Updated: `GeneratedTenantResult` interface to include `costItemsEnabled`
+- Deployed to production (https://workforce-platform-omega.vercel.app)
+- Next: invoice generation workflow, SAP GL export
+
+### 2026-06-30 — [VSCode] (7 Cost Items / Awards UX improvements)
+- Built: Rate type field on demand form (hourly/daily selector in Billing section) — DB migration adds `rate_type` to demands table
+- Built: Rate inherited from award in cost entry form — unit_price pre-filled from award.rate; quantity label says "Hours" or "Days" based on award.rate_type
+- Built: Daily Timesheet mode in period detail — shows all working days (Mon–Fri) in the billing period; enter qty per day; Fill All button; live total preview; creates one entry per day via new `createDailyTimesheetEntries` action
+- Built: Edit draft cost entries inline — pencil icon button; inline edit form for description, quantity, unit price, notes; new `updateCostEntry` server action
+- Built: Cost items overview shows computed entry total — `listAllPeriods` now joins period_cost_entries and sums non-rejected amounts; displayed per period row
+- Built: Awards overview stats bar — 5 stat cards (pending/approved/active/completed/cancelled) with count bubbles, mobile-optimized 2+3 grid; separate all-awards query for accurate counts when filtered
+- Built: Auto-generate billing periods when award → active — `updateAwardStatus` now calls `generatePeriodDates` and inserts periods automatically when billing_period_type + start/end dates are set
+- Built: Test data generator adds billing periods + cost entries for all active award scenarios (scenarios 3 and 6 previously missing)
+- Decided: rate_type defaults to 'daily' in migration; nullable in TypeScript type
+- Deployed to production (https://workforce-platform-omega.vercel.app)
+- Next: no pending tasks
+
+### 2026-06-30 (cont.) — [VSCode] (Test data generation + final deploy)
+- Built: `/api/generate-tenant-test-data` streaming SSE route — 15 E2E scenarios per tenant (5 full E2E demand→submission→award→billing periods, 5 demand→award at various statuses, 5 demand process only); uses admin client directly; requires admin user in tenant
+- Built: `GenerateTestDataButton` client component — terminal-style modal with live action log stream (colored log lines: green/red/yellow/grey), summary card with counts, "Run E2E Scenarios →" link after completion
+- Updated: `GenerateTenantButton` result modal now shows "✓ Cost items enabled" chip when cost_items table has data
+- Updated: `GeneratedTenantResult` type includes `costItemsEnabled: boolean`
+- Button placed in tenant config page next to RunScenarioButton
+- Deployed to production (https://workforce-platform-omega.vercel.app)
+- Next: no pending tasks
+
+### 2026-06-30 (cont.) — [VSCode]
+- Fixed: HM demand creation error (Digest: 447659444) — migration 046 adds `rate_type TEXT DEFAULT 'daily'` to demands table (was referenced in createDemand() but never migrated); applied via Supabase MCP
+- Fixed: Supplier create redirect — now goes to `/dashboard/suppliers/[id]/edit` instead of overview
+- Fixed: Candidate list rows — registered candidates now have Edit button linking to `/dashboard/candidates/[id]/edit`; uses invisible overlay link pattern (no nested anchors)
+- Fixed: Sidebar demand badge clears on page visit — `markDemandNotificationsRead()` called from FilterBar on mount
+- Built: Demand list sort control — FilterBar now has sort dropdown (6 options: last updated/oldest updated/newest/oldest created/title/priority); sort param passed in URL, persisted to localStorage (`demands_sort` key)
+- Built: WorkflowVisualizer extended with billing/cost phase (purple) — 4 new stages: Cost Entry, MSP Review (configurable), HM Approval (configurable), Invoiced; ON/OFF badge on conditional stages
+- Built: `cost_msp_review` + `cost_hm_approval` config flags on tenant_configs (migration 047); toggles in tenant config workflow form; saved via updateTenantConfig
+- Built: Cost item steps in E2E scenario runner — 4 new operational steps: Submit Cost Entry (supplier), MSP Review Cost Entry (conditional), HM Approve Billing Period (conditional), Mark Period Invoiced
+- Built: Tenant config global search — `TenantConfigSearch` client component above nav; searches across users, suppliers, org units, JDs, supplier categories; click result scrolls to section anchor
+- Decided: WorkflowVisualizer billing phase uses purple (#5856D6) to distinguish from existing demand/sourcing/award phases
+- Deployed to production (https://workforce-platform-omega.vercel.app)
+- Next: session email pending

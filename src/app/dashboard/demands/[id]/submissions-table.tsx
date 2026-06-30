@@ -166,6 +166,7 @@ export async function SubmissionsTable({ demandId, demandSkills, demandTitle, de
         rateType: sub.rate_type,
         cvSignedUrl,
         score,
+        aiScore: typeof (sub as { ai_score?: unknown }).ai_score === 'number' ? (sub as { ai_score: number }).ai_score : null,
         matchedSkills: matched,
         interviews: interviewMap[sub.id] ?? [],
       };

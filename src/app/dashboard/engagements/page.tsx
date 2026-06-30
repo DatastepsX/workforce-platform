@@ -11,17 +11,33 @@ export default async function EngagementsPage() {
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single();
+    .from('profiles').select('role, tenant_id').eq('id', user.id).single();
   const role = profile?.role ?? '';
   if (!['super_admin', 'admin', 'recruiter', 'hiring_manager'].includes(role)) redirect('/dashboard');
 
   const admin = createAdminClient();
-  const { data } = await admin
-    .from('engagements')
-    .select('*')
-    .order('updated_at', { ascending: false });
+  const tenantId = profile?.tenant_id ?? null;
 
-  const engagements = (data ?? []) as Engagement[];
+  let engagements: Engagement[] = [];
+
+  if (role !== 'super_admin' && tenantId) {
+    const { data: tenantDemands } = await admin.from('demands').select('id').eq('tenant_id', tenantId);
+    const demandIds = (tenantDemands ?? []).map((d: { id: string }) => d.id);
+    if (demandIds.length > 0) {
+      const { data } = await admin
+        .from('engagements')
+        .select('*')
+        .in('demand_id', demandIds)
+        .order('updated_at', { ascending: false });
+      engagements = (data ?? []) as Engagement[];
+    }
+  } else {
+    const { data } = await admin
+      .from('engagements')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    engagements = (data ?? []) as Engagement[];
+  }
 
   return (
     <div className="px-8 py-10">

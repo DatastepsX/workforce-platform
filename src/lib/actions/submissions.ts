@@ -279,6 +279,14 @@ export async function updateSubmissionStatus(
     } catch { /* non-blocking */ }
   }
 
+  // When moving to 'offer': set offer_status = pending
+  if (status === 'offer') {
+    try {
+      const admin2 = createAdminClient();
+      await admin2.from('candidate_submissions').update({ offer_status: 'pending' }).eq('id', id);
+    } catch { /* non-blocking */ }
+  }
+
   // Email notification for key status changes
   try {
     const { data: sub } = await supabase
@@ -293,7 +301,7 @@ export async function updateSubmissionStatus(
     if (['rejected', 'offer', 'hired'].includes(status)) {
       // Notify supplier
       const { data: supplier } = await supabase
-        .from('suppliers').select('email, contact_name, company_name').eq('id', sub.supplier_id).single();
+        .from('suppliers').select('id, email, contact_name, company_name, profile_id').eq('id', sub.supplier_id).single();
       if (supplier?.email) {
         await emailSubmissionStatusChanged({
           toEmail: supplier.email,
@@ -304,6 +312,19 @@ export async function updateSubmissionStatus(
           status,
           isSupplier: true,
         });
+      }
+      // In-app notification to supplier user (if they have an auth account)
+      if (status === 'offer' && (supplier as { profile_id?: string | null } | null)?.profile_id) {
+        try {
+          await createNotifications({
+            userIds: [(supplier as { profile_id: string }).profile_id],
+            type: 'submission_status',
+            title: 'Offer made for your candidate',
+            body: `${sub.candidate_name} — ${demand.title}`,
+            relatedId: demandId,
+            relatedType: 'demand',
+          });
+        } catch { /* non-blocking */ }
       }
     }
 
@@ -515,6 +536,71 @@ export interface AIMatchResult {
   summary: string;
   matchedPairs: { candidateSkill: string; demandSkill: string; confidence: 'high' | 'medium' | 'low'; reason: string }[];
   missingSkills: string[];
+}
+
+export async function saveAiMatchScore(
+  submissionId: string,
+  aiScore: number,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('candidate_submissions')
+    .update({ ai_score: aiScore })
+    .eq('id', submissionId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function respondToOffer(
+  submissionId: string,
+  response: 'accepted' | 'declined',
+  note?: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const admin = createAdminClient();
+
+  // Only supplier users can respond
+  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single();
+  if ((profile as { role: string } | null)?.role !== 'supplier') return { error: 'Not authorized' };
+
+  const { data: sub } = await admin
+    .from('candidate_submissions')
+    .select('demand_id, candidate_name, supplier_id')
+    .eq('id', submissionId)
+    .single();
+  if (!sub) return { error: 'Submission not found' };
+
+  const { error } = await admin.from('candidate_submissions').update({
+    offer_status: response,
+    offer_note: note || null,
+  }).eq('id', submissionId);
+  if (error) return { error: error.message };
+
+  // Notify recruiter/admin of the response
+  try {
+    const { data: demand } = await admin.from('demands').select('title, tenant_id').eq('id', (sub as { demand_id: string }).demand_id).single();
+    const tenantId = (demand as { tenant_id: string | null } | null)?.tenant_id;
+    const { data: notifyTargets } = tenantId
+      ? await admin.from('profiles').select('id').in('role', ['admin', 'recruiter']).eq('tenant_id', tenantId)
+      : await admin.from('profiles').select('id').in('role', ['admin', 'recruiter']);
+    if (notifyTargets?.length) {
+      await createNotifications({
+        userIds: notifyTargets.map((p: { id: string }) => p.id),
+        type: 'submission_status',
+        title: response === 'accepted' ? 'Offer accepted' : 'Offer declined',
+        body: `${(sub as { candidate_name: string }).candidate_name} — ${(demand as { title: string } | null)?.title ?? ''}`,
+        relatedId: (sub as { demand_id: string }).demand_id,
+        relatedType: 'demand',
+      });
+    }
+  } catch { /* non-blocking */ }
+
+  revalidatePath('/supplier');
+  revalidatePath(`/dashboard/demands/${(sub as { demand_id: string }).demand_id}`);
+  return {};
 }
 
 export async function analyzeSkillMatchAI(

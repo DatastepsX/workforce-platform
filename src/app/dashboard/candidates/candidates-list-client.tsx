@@ -92,6 +92,7 @@ export function CandidatesListClient({
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [minScore, setMinScore] = useState(0);
   const [demandFilter, setDemandFilter] = useState<string>('all');
+  const [showAllSkills, setShowAllSkills] = useState(false);
 
   useEffect(() => { markCandidateNotificationsRead(); }, []);
 
@@ -250,19 +251,27 @@ export function CandidatesListClient({
 
           {/* Skill chips */}
           {allSkills.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-4">
+            <div className="flex flex-wrap gap-1.5 mb-4 items-center">
               {selectedSkills.length > 0 && (
                 <button onClick={() => setSelectedSkills([])} className="text-[11px] text-[#FF3B30] hover:opacity-70 transition-opacity whitespace-nowrap flex-shrink-0 font-medium">
                   ✕ Clear
                 </button>
               )}
-              {allSkills.map(skill => (
+              {(showAllSkills ? allSkills : allSkills.slice(0, 8)).map(skill => (
                 <button key={skill} onClick={() => toggleSkill(skill)}
                   className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full transition-colors border whitespace-nowrap flex-shrink-0 ${selectedSkills.includes(skill) ? 'bg-[#007AFF] text-white border-[#007AFF]' : 'bg-white text-[#3C3C43] border-[#E5E5EA] hover:border-[#007AFF] hover:text-[#007AFF]'}`}
                 >
                   {skill}
                 </button>
               ))}
+              {allSkills.length > 8 && (
+                <button
+                  onClick={() => setShowAllSkills(v => !v)}
+                  className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-[#F2F2F7] text-[#8E8E93] hover:bg-[#E5E5EA] transition-colors border border-transparent whitespace-nowrap flex-shrink-0"
+                >
+                  {showAllSkills ? 'Show less' : `+${allSkills.length - 8} more`}
+                </button>
+              )}
             </div>
           )}
 
@@ -280,9 +289,8 @@ export function CandidatesListClient({
                   const initial = displayName[0]?.toUpperCase() ?? '?';
                   const availColor = AVAIL_COLORS[c.availability_type];
                   return (
-                    <Link key={c.id} href={`/dashboard/candidates/${c.id}`}
-                      className="block bg-white rounded-2xl px-5 py-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.1)] transition-shadow"
-                    >
+                    <div key={c.id} className="relative bg-white rounded-2xl px-5 py-5 shadow-[0_1px_8px_rgba(0,0,0,0.06)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.1)] transition-shadow">
+                      <Link href={`/dashboard/candidates/${c.id}`} className="absolute inset-0 rounded-2xl" aria-label={`View ${displayName}`} />
                       <div className="flex items-start gap-4">
                         <div className="w-11 h-11 rounded-full flex items-center justify-center text-white text-[16px] font-bold flex-shrink-0" style={{ backgroundColor: '#007AFF' }}>
                           {initial}
@@ -294,10 +302,17 @@ export function CandidatesListClient({
                               {c.profile.email && <p className="text-[11px] text-[#8E8E93] leading-tight mt-0.5 truncate">{c.profile.email}</p>}
                               {c.headline && <p className="text-[13px] text-[#3C3C43] mt-0.5 truncate">{c.headline}</p>}
                             </div>
-                            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 flex items-center gap-1" style={{ backgroundColor: availColor + '18', color: availColor }}>
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: availColor }} />
-                              {AVAIL_LABELS[c.availability_type]}
-                            </span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1" style={{ backgroundColor: availColor + '18', color: availColor }}>
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: availColor }} />
+                                {AVAIL_LABELS[c.availability_type]}
+                              </span>
+                              <Link href={`/dashboard/candidates/${c.id}/edit`}
+                                className="relative z-10 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-[#E5E5EA] text-[#8E8E93] hover:border-[#007AFF] hover:text-[#007AFF] transition-colors"
+                              >
+                                Edit
+                              </Link>
+                            </div>
                           </div>
                           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[12px] text-[#8E8E93]">
                             {c.seniority_level && <span>{SENIORITY_LABELS[c.seniority_level]}</span>}
@@ -311,19 +326,16 @@ export function CandidatesListClient({
                             )}
                           </div>
                           {c.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2.5">
-                              {c.skills.slice(0, 6).map(s => (
-                                <span key={s} className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${selectedSkills.includes(s) ? 'bg-[#007AFF] text-white' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>{s}</span>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {c.skills.slice(0, 4).map(s => (
+                                <span key={s} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${selectedSkills.includes(s) ? 'bg-[#007AFF] text-white' : 'bg-[#007AFF]/10 text-[#007AFF]'}`}>{s}</span>
                               ))}
-                              {c.skills.length > 6 && <span className="text-[11px] text-[#8E8E93]">+{c.skills.length - 6}</span>}
+                              {c.skills.length > 4 && <span className="text-[10px] bg-[#F2F2F7] text-[#8E8E93] px-2 py-0.5 rounded-full font-medium">+{c.skills.length - 4}</span>}
                             </div>
                           )}
                         </div>
-                        <svg className="w-4 h-4 text-[#C6C6C8] flex-shrink-0 mt-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -369,11 +381,11 @@ export function CandidatesListClient({
                             {c.availability && <span>· {c.availability}</span>}
                           </div>
                           {c.skills.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2.5">
-                              {c.skills.slice(0, 6).map(s => (
-                                <span key={s} className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${selectedSkills.includes(s) ? 'bg-[#5856D6] text-white' : 'bg-[#5856D6]/10 text-[#5856D6]'}`}>{s}</span>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {c.skills.slice(0, 4).map(s => (
+                                <span key={s} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${selectedSkills.includes(s) ? 'bg-[#5856D6] text-white' : 'bg-[#5856D6]/10 text-[#5856D6]'}`}>{s}</span>
                               ))}
-                              {c.skills.length > 6 && <span className="text-[11px] text-[#8E8E93]">+{c.skills.length - 6}</span>}
+                              {c.skills.length > 4 && <span className="text-[10px] bg-[#F2F2F7] text-[#8E8E93] px-2 py-0.5 rounded-full font-medium">+{c.skills.length - 4}</span>}
                             </div>
                           )}
                         </div>

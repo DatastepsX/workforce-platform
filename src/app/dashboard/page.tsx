@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import type { Profile, Demand, CandidateProfile, CandidateSubmission, Engagement } from '@/types/database';
+import type { Profile, Demand, CandidateProfile, CandidateSubmission } from '@/types/database';
 import { computeMatch, matchColor } from '@/lib/matching';
 
 function getGreeting() {
@@ -16,6 +17,8 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   admin: 'You have full access to all platform features.',
   hiring_manager: 'Create and track your open positions.',
   recruiter: 'Manage all demands and candidates.',
+  procurement: 'Review and approve demands and awards.',
+  finance: 'Review demand budgets and award financials.',
   candidate: 'Browse open positions and manage your applications.',
   supplier: 'View demand requests and submit candidate profiles.',
 };
@@ -56,7 +59,7 @@ export default async function DashboardPage() {
 
   // Fetch demand stats for relevant roles
   let demandStats: { open: number; draft: number; total: number } | null = null;
-  if (['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role)) {
+  if (['super_admin', 'admin', 'hiring_manager', 'recruiter', 'procurement', 'finance'].includes(role)) {
     const { data: demands } = await supabase
       .from('demands')
       .select('status');
@@ -70,17 +73,39 @@ export default async function DashboardPage() {
     }
   }
 
-  // Fetch engagement stats for relevant roles
+  // Fetch active award stats for relevant roles
   let engagementStats: { total: number; active: number } | null = null;
-  if (['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role)) {
-    const { data: engs } = await supabase.from('engagements').select('status');
-    if (engs) {
-      const e = engs as Pick<Engagement, 'status'>[];
+  if (['super_admin', 'admin', 'hiring_manager', 'recruiter', 'procurement', 'finance'].includes(role)) {
+    const adminClient2 = createAdminClient();
+    const tenantId2 = p?.tenant_id ?? null;
+    const q = tenantId2
+      ? adminClient2.from('awards').select('status').eq('tenant_id', tenantId2)
+      : adminClient2.from('awards').select('status');
+    const { data: awardRows } = await q;
+    if (awardRows) {
       engagementStats = {
-        total: e.length,
-        active: e.filter(x => x.status === 'active').length,
+        total: awardRows.length,
+        active: awardRows.filter((x: { status: string }) => x.status === 'active').length,
       };
     }
+  }
+
+  // Fetch pending approval counts (demand + award) for approver roles
+  let pendingDemandApprovals: number | null = null;
+  let pendingAwardApprovals: number | null = null;
+  if (['super_admin', 'admin', 'recruiter', 'procurement', 'finance'].includes(role)) {
+    const adminClient = createAdminClient();
+    const tenantId = p?.tenant_id ?? null;
+    const [{ count: demandCount }, { count: awardCount }] = await Promise.all([
+      tenantId
+        ? supabase.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval').eq('tenant_id', tenantId)
+        : adminClient.from('demands').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval'),
+      tenantId
+        ? adminClient.from('awards').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval').eq('tenant_id', tenantId)
+        : adminClient.from('awards').select('*', { count: 'exact', head: true }).eq('status', 'pending_approval'),
+    ]);
+    pendingDemandApprovals = demandCount ?? 0;
+    pendingAwardApprovals = awardCount ?? 0;
   }
 
   // Candidate: fetch their applications + compute best match
@@ -123,11 +148,29 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Engagement stats */}
+      {/* Pending approval stats */}
+      {(pendingDemandApprovals !== null || pendingAwardApprovals !== null) && (
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <StatCard
+            label="Demands Pending Approval"
+            value={pendingDemandApprovals ?? 0}
+            href="/dashboard/demands?status=pending_approval"
+            accent={pendingDemandApprovals ? '#FF9500' : '#8E8E93'}
+          />
+          <StatCard
+            label="Awards Pending Approval"
+            value={pendingAwardApprovals ?? 0}
+            href="/dashboard/awards"
+            accent={pendingAwardApprovals ? '#34C759' : '#8E8E93'}
+          />
+        </div>
+      )}
+
+      {/* Award stats */}
       {engagementStats !== null && engagementStats.total > 0 && (
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <StatCard label="Active Engagements" value={engagementStats.active} href="/dashboard/engagements" accent="#34C759" />
-          <StatCard label="Total Engagements" value={engagementStats.total} href="/dashboard/engagements" accent="#007AFF" />
+          <StatCard label="Active Awards" value={engagementStats.active} href="/dashboard/awards" accent="#34C759" />
+          <StatCard label="Total Awards" value={engagementStats.total} href="/dashboard/awards" accent="#007AFF" />
         </div>
       )}
       {engagementStats !== null && engagementStats.total === 0 && demandStats !== null && (
@@ -135,29 +178,33 @@ export default async function DashboardPage() {
       )}
 
       {/* Quick actions */}
-      {['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role) && (
+      {['super_admin', 'admin', 'hiring_manager', 'recruiter', 'procurement', 'finance'].includes(role) && (
         <div>
           <p className="text-[12px] font-semibold text-[#8E8E93] uppercase tracking-[0.6px] mb-2 ml-1">
             Quick Actions
           </p>
           <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
-            <Link
-              href="/dashboard/demands/new"
-              className="flex items-center justify-between px-4 py-4 hover:bg-[#F2F2F7] transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(0,122,255,0.12)' }}>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth={2} strokeLinecap="round">
-                    <path d="M12 5v14M5 12h14" />
+            {['super_admin', 'admin', 'hiring_manager', 'recruiter'].includes(role) && (
+              <>
+                <Link
+                  href="/dashboard/demands/new"
+                  className="flex items-center justify-between px-4 py-4 hover:bg-[#F2F2F7] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(0,122,255,0.12)' }}>
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth={2} strokeLinecap="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </div>
+                    <span className="text-[16px] text-black font-medium">Create new demand</span>
+                  </div>
+                  <svg className="w-4 h-4 text-[#C6C6C8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18l6-6-6-6" />
                   </svg>
-                </div>
-                <span className="text-[16px] text-black font-medium">Create new demand</span>
-              </div>
-              <svg className="w-4 h-4 text-[#C6C6C8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </Link>
-            <div className="ml-[58px] h-px bg-[#C6C6C8]" />
+                </Link>
+                <div className="ml-[58px] h-px bg-[#C6C6C8]" />
+              </>
+            )}
             <Link
               href="/dashboard/demands"
               className="flex items-center justify-between px-4 py-4 hover:bg-[#F2F2F7] transition-colors"
