@@ -241,3 +241,11 @@ Each session appends an entry at the end.
 - Decided: WorkflowVisualizer billing phase uses purple (#5856D6) to distinguish from existing demand/sourcing/award phases
 - Deployed to production (https://workforce-platform-omega.vercel.app)
 - Next: session email pending
+
+### 2026-06-30 (cont. 2) — [VSCode] (Deploy recovery)
+- Issue: Network outage on the Mac — TLS handshakes to vercel.com and github.com timing out (TCP connected, SSL never completed). Affected both `vercel --prod` and `git push`.
+- Fixed: Network recovered later in session; pushed commit d5872db (all 8 items from this session) to GitHub successfully.
+- Fixed: Production build caught a lint error `tsc --noEmit` missed — unused `tenantId` prop in `TenantConfigSearch`. Removed from both the component and its caller in tenant `[id]/page.tsx`. Commit 9406d13.
+- Deployed to production (https://workforce-platform-omega.vercel.app) — build succeeded, all 40 routes compiled.
+- Decided: `npx tsc --noEmit` alone is not sufficient pre-deploy verification — ESLint's `no-unused-vars` only runs during `next build`. Run `npm run build` locally before deploying when uncertain.
+- Next: no pending tasks
