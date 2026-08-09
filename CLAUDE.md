@@ -3,7 +3,9 @@
 ## End-of-Session Rule (MANDATORY — no exceptions, no confirmation)
 At the end of every session, **always** do all three of these in order — never ask, never skip:
 1. Update `SESSION_LOG.md` and `CLAUDE.md`
-2. Run `vercel deploy --prod` to deploy to production
+2. Deploy to production:
+   - **VSCode/Mac sessions**: run `vercel deploy --prod`
+   - **Claude Code Mobile/Web sessions**: use the Vercel MCP `deploy_to_vercel` tool instead (the `vercel` CLI is not installed/authed in these ephemeral containers)
 3. Send the changelog email (see below)
 
 ## Changelog Email Rule
@@ -97,7 +99,7 @@ Manages permanent hiring, freelancers, contractors, and internal mobility across
 - **Dashboard Overview**: separate stat cards for "Demands Pending Approval" (orange) and "Awards Pending Approval" (green) for approver roles; scoped to tenant where applicable
 - **Demand Progress Bar**: segmented 8-step progress bar on each demand card showing % through the workflow phases (PHASE_ORDER); terminal statuses (cancelled/rejected/on_hold) shown with empty bar
 - **API Call Tracking**: `src/lib/api-tracker.ts` — non-blocking Resend email after every Anthropic call with token counts + cost
-- **Mobile Workflow**: iPhone SSH via Termius + Tailscale (100.111.139.5); Claude Code CLI on subscription billing (Sonnet 4.6); `SESSION_LOG.md` shared between sessions
+- **Mobile Workflow**: two supported entry points, both sharing `SESSION_LOG.md` for continuity — (1) **Claude Code Mobile/Web sessions** (primary): work from the Claude Code mobile app or claude.ai/code; spins up an ephemeral remote container with `DatastepsX/workforce-platform` attached. Env vars (Supabase, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL`) must be set as persistent **Environment Variables** in the Claude Code environment settings, not a git-tracked `.env.local` — the container is rebuilt from scratch each session, so `npm install` also reruns each time. Supabase/Vercel/Gmail are connected as MCP integrations at the account level, so DB reads/migrations work via Supabase MCP tools even before app env vars are set. Production deploys use the Vercel MCP `deploy_to_vercel` tool (no CLI available). (2) **iPhone SSH** (alternative, requires Mac powered on): via Termius + Tailscale (100.111.139.5) into the Mac; Claude Code CLI on subscription billing (Sonnet 4.6)
 
 ## Design System
 - **Accent**: `#007AFF` (Apple blue)
@@ -351,7 +353,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...      # Required for admin client (bypasses RLS)
 ANTHROPIC_API_KEY=...              # Required for AI test data generation
 RESEND_API_KEY=...                 # Required for email notifications
+NEXT_PUBLIC_APP_URL=...            # https://workforce-platform-omega.vercel.app — required for social post tracking URLs
 ```
+On Mac/VSCode these live in `.env.local` (gitignored). In **Claude Code Mobile/Web sessions**, set them as persistent Environment Variables on the Claude Code environment instead (Settings → Environments → this environment) — a `.env.local` written inside the session is lost when the container is recycled.
 
 ## Project Structure
 ```

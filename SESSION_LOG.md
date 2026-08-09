@@ -249,3 +249,13 @@ Each session appends an entry at the end.
 - Deployed to production (https://workforce-platform-omega.vercel.app) — build succeeded, all 40 routes compiled.
 - Decided: `npx tsc --noEmit` alone is not sufficient pre-deploy verification — ESLint's `no-unused-vars` only runs during `next build`. Run `npm run build` locally before deploying when uncertain.
 - Next: no pending tasks
+
+### 2026-08-09 — [Claude Code Mobile/Web]
+- Built: no feature work — set up this new session type as a supported dev workflow, in parallel with iPhone SSH
+- Decided: env vars (Supabase, Anthropic, Resend, NEXT_PUBLIC_APP_URL) go in persistent Claude Code Environment Variables for mobile/web sessions, not `.env.local` (container is rebuilt each session)
+- Decided: production deploys from mobile/web sessions use the Vercel MCP `deploy_to_vercel` tool instead of the `vercel` CLI (not installed in these containers); Mac/VSCode keeps `vercel deploy --prod`
+- Decided: changelog email stays on the existing Resend script pattern (no change), just needs `RESEND_API_KEY` set per above
+- Found: Supabase/Vercel/Gmail are already connected as MCP integrations at the account level — DB reads/migrations work via Supabase MCP tools even before app env vars exist
+- Found: `workforce-mobile` has no GitHub remote (Mac-only), so it can't be attached to remote sessions yet — skipped for now
+- Updated: CLAUDE.md — End-of-Session Rule, Mobile Workflow bullet, Environment Variables section now document the mobile/web workflow alongside the Mac/SSH one
+- Next: user needs to add `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL` as persistent Environment Variables in Claude Code environment settings before dev server / AI features / email will work from mobile sessions; push `workforce-mobile` to GitHub if mobile app work is wanted here too
