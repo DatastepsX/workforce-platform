@@ -259,3 +259,10 @@ Each session appends an entry at the end.
 - Found: `workforce-mobile` has no GitHub remote (Mac-only), so it can't be attached to remote sessions yet — skipped for now
 - Updated: CLAUDE.md — End-of-Session Rule, Mobile Workflow bullet, Environment Variables section now document the mobile/web workflow alongside the Mac/SSH one
 - Next: user needs to add `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `NEXT_PUBLIC_APP_URL` as persistent Environment Variables in Claude Code environment settings before dev server / AI features / email will work from mobile sessions; push `workforce-mobile` to GitHub if mobile app work is wanted here too
+
+### 2026-08-09 (cont.) — [Claude Code Mobile/Web]
+- Found: this environment's network policy blocks direct outbound calls to `api.vercel.com` and `api.resend.com` (403 policy denial confirmed via agent proxy status) — Vercel CLI and the Resend changelog script cannot work from here regardless of tokens
+- Found: Vercel MCP `deploy_to_vercel` tool is reachable but only supports uploading a full inline file tree, impractical for this app (222 files / 2.5MB, ~600k+ tokens)
+- Corrected: CLAUDE.md previously said mobile/web sessions should use the Vercel MCP tool for deploys — reverted, there is currently no working deploy path from this environment; deploys still need a Mac/VSCode session unless the environment's network policy is widened to allow `api.vercel.com`
+- Decided: changelog emails from mobile/web sessions go via Gmail MCP instead of the Resend script (Resend API is blocked here)
+- Next: user to consider whether to change this Claude Code environment's network policy (Settings → Environments) to allow `api.vercel.com` / `api.resend.com` if they want deploys/Resend emails to work directly from mobile sessions
