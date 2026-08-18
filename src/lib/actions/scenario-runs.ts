@@ -57,7 +57,7 @@ export async function runScenarioAction(
   // 3. Generate optimization ideas via Anthropic (best-effort, non-blocking)
   let optimizationIdeas: OptimizationIdea[] | null = null;
   try {
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const anthropicKey = process.env.WORKFORCEX_ANTHROPIC_API_KEY;
     if (anthropicKey) {
       const client = new Anthropic({ apiKey: anthropicKey });
       const configSummary = {

@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { SOFT_SKILLS } from '@/types/database';
 import { trackApiCall } from '@/lib/api-tracker';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.WORKFORCEX_ANTHROPIC_API_KEY });
 
 interface LadderStep { position: number; title: string; required_skills: string[] }
 interface LadderRow { name: string; id: string; industry: string | null; career_ladder_steps: LadderStep[] }

@@ -612,11 +612,11 @@ export async function analyzeSkillMatchAI(
   if (!candidateSkills.length || !demandSkills.length) {
     return { error: 'Insufficient skill data for AI analysis' };
   }
-  if (!process.env.ANTHROPIC_API_KEY) return { error: 'AI analysis not configured' };
+  if (!process.env.WORKFORCEX_ANTHROPIC_API_KEY) return { error: 'AI analysis not configured' };
 
   try {
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = new Anthropic({ apiKey: process.env.WORKFORCEX_ANTHROPIC_API_KEY });
 
     const prompt = `You are a technical recruiter assessing skill match between a candidate and a job demand.
 
