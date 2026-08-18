@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { trackApiCall } from '@/lib/api-tracker';
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.WORKFORCEX_ANTHROPIC_API_KEY });
 
 const BASE_EMAIL = 'micciche.alessandro';
 
@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
+  if (!process.env.WORKFORCEX_ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'WORKFORCEX_ANTHROPIC_API_KEY not configured' }, { status: 500 });
   }
 
   const { path, fields, pageContext, searchParams: rawSearchParams } = body as typeof body & { searchParams?: string };

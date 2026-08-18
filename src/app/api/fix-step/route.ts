@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     operational: 'Operational check',
   }[step.pathType] ?? step.pathType;
 
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+  const anthropic = new Anthropic({ apiKey: process.env.WORKFORCEX_ANTHROPIC_API_KEY! });
 
   const systemPrompt = `You are a senior software engineer working on WorkforceX, a Workforce Operating System built with Next.js 14 App Router, TypeScript, Tailwind CSS, shadcn/ui, and Supabase.
 

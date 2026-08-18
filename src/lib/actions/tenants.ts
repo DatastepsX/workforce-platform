@@ -242,7 +242,7 @@ export interface GeneratedTenantResult {
 export async function generateTestTenant(): Promise<GeneratedTenantResult> {
   await assertAdmin();
   const admin = createAdminClient();
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const anthropic = new Anthropic({ apiKey: process.env.WORKFORCEX_ANTHROPIC_API_KEY });
 
   // Fetch existing tenant names so the AI avoids duplicates
   const { data: existingTenants } = await admin.from('tenants').select('name');
